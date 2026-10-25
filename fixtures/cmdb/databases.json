@@ -1,0 +1,10 @@
+[
+  {
+    "id": "ci-database-001",
+    "ci_name": "database01",
+    "server_instance_id": "ci-server-001",
+    "database_type": "PostgreSQL",
+    "version": "16",
+    "status": "Active"
+  }
+]

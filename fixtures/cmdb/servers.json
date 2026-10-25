@@ -1,0 +1,38 @@
+[
+  {
+    "id": "cmdb-server-001",
+    "reconciliation_identity": "CI-SERVER-001",
+    "name": "server01",
+    "hostname": "server01.example.local",
+    "ip_address": "192.0.2.10",
+    "operating_system": "Red Hat Enterprise Linux 9",
+    "os_version": "9.8",
+    "environment": "UAT",
+    "company": "IndusInd Bank",
+    "status": "Active",
+    "asset_type": "Server",
+    "application_name": "Example Application",
+    "application_owner": "Pending CMDB mapping",
+    "support_group": "Pending CMDB mapping",
+    "location": "Pending CMDB mapping",
+    "last_patch_updated": null
+  },
+  {
+    "id": "cmdb-server-002",
+    "reconciliation_identity": "CI-SERVER-002",
+    "name": "server02",
+    "hostname": "server02.example.local",
+    "ip_address": "192.0.2.20",
+    "operating_system": "Red Hat Enterprise Linux 8",
+    "os_version": "8.10",
+    "environment": "Production",
+    "company": "IndusInd Bank",
+    "status": "Active",
+    "asset_type": "Server",
+    "application_name": "Example Application",
+    "application_owner": "Pending CMDB mapping",
+    "support_group": "Pending CMDB mapping",
+    "location": "Pending CMDB mapping",
+    "last_patch_updated": null
+  }
+]

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "change-001",
+    "summary": "Patch update for server01",
+    "first_name": "Test",
+    "last_name": "User",
+    "status": "Draft",
+    "impact": 2000,
+    "urgency": 4000,
+    "location_company": "IndusInd Bank",
+    "detailed_description": "Apply an approved operating system security update to the target server.",
+    "company3": "IndusInd Bank",
+    "support_organization": "Pending ITSM mapping",
+    "support_group_name": "Pending ITSM mapping",
+    "ibl_change_nature": "Pending ITSM mapping",
+    "ibl_nature_of_change": "Pending ITSM mapping",
+    "ibl_application_infrastructure": "Infrastructure",
+    "ibl_downtime_required": "Pending approval",
+    "service_ci": "CI-SERVER-001",
+    "description": "Simulated security patch change request",
+    "environment": "UAT",
+    "scheduled_start_date": "2026-11-02T20:00:00Z",
+    "scheduled_end_date": "2026-11-02T22:00:00Z"
+  }
+]

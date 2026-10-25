@@ -1,0 +1,26 @@
+[
+  {
+    "id": "job-host-result-001",
+    "job_run_id": "job-run-001",
+    "host_id": "satellite-host-001",
+    "status": "success",
+    "started_at": "2026-10-25T10:00:00Z",
+    "finished_at": "2026-10-25T10:05:00Z",
+    "exit_code": 0,
+    "stdout": "SIMULATION: package update would be performed.",
+    "stderr": "",
+    "is_simulated": true
+  },
+  {
+    "id": "job-host-result-002",
+    "job_run_id": "job-run-002",
+    "host_id": "satellite-host-002",
+    "status": "success",
+    "started_at": "2026-10-25T11:00:00Z",
+    "finished_at": "2026-10-25T11:02:00Z",
+    "exit_code": 0,
+    "stdout": "SIMULATION: patch verification completed.",
+    "stderr": "",
+    "is_simulated": true
+  }
+]

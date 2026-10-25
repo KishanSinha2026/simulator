@@ -1,0 +1,10 @@
+[
+  {
+    "id": "ci-middleware-001",
+    "ci_name": "middleware01",
+    "server_instance_id": "ci-server-001",
+    "product_name": "Example Middleware",
+    "version": "1.0",
+    "status": "Active"
+  }
+]

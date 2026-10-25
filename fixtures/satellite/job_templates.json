@@ -1,0 +1,22 @@
+[
+  {
+    "id": "job-template-001",
+    "name": "Simulated Package Update",
+    "description": "Simulates an approved package-update workflow for local testing.",
+    "template_kind": "job",
+    "provider": "json",
+    "enabled": true,
+    "supports_check_mode": true,
+    "command": null
+  },
+  {
+    "id": "job-template-002",
+    "name": "Simulated Patch Verification",
+    "description": "Simulates checking the patch status of a managed host.",
+    "template_kind": "job",
+    "provider": "json",
+    "enabled": true,
+    "supports_check_mode": true,
+    "command": null
+  }
+]

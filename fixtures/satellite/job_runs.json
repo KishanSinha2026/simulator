@@ -1,0 +1,32 @@
+[
+  {
+    "id": "job-run-001",
+    "job_template_id": "job-template-001",
+    "job_template_name": "Simulated Package Update",
+    "host_ids": [
+      "satellite-host-001"
+    ],
+    "status": "completed",
+    "started_at": "2026-10-25T10:00:00Z",
+    "finished_at": "2026-10-25T10:05:00Z",
+    "result_summary": "Simulated package update completed successfully.",
+    "is_simulated": true,
+    "change_id": "change-001",
+    "error_message": null
+  },
+  {
+    "id": "job-run-002",
+    "job_template_id": "job-template-002",
+    "job_template_name": "Simulated Patch Verification",
+    "host_ids": [
+      "satellite-host-002"
+    ],
+    "status": "completed",
+    "started_at": "2026-10-25T11:00:00Z",
+    "finished_at": "2026-10-25T11:02:00Z",
+    "result_summary": "Simulated patch verification completed.",
+    "is_simulated": true,
+    "change_id": null,
+    "error_message": null
+  }
+]

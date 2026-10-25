@@ -1,0 +1,30 @@
+[
+  {
+    "id": "satellite-host-001",
+    "name": "server01.example.local",
+    "ip_address": "192.0.2.10",
+    "operating_system": "Red Hat Enterprise Linux 9",
+    "os_version": "9.8",
+    "environment": "UAT",
+    "status": "Managed",
+    "lifecycle_environment": "Library",
+    "content_view": "Default Organization View",
+    "organization": "IndusInd Bank",
+    "location": "Default Location",
+    "last_checkin": "2026-10-25T08:30:00Z"
+  },
+  {
+    "id": "satellite-host-002",
+    "name": "server02.example.local",
+    "ip_address": "192.0.2.20",
+    "operating_system": "Red Hat Enterprise Linux 8",
+    "os_version": "8.10",
+    "environment": "Production",
+    "status": "Managed",
+    "lifecycle_environment": "Library",
+    "content_view": "Default Organization View",
+    "organization": "IndusInd Bank",
+    "location": "Default Location",
+    "last_checkin": "2026-10-25T09:00:00Z"
+  }
+]
