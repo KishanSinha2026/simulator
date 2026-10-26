@@ -27,4 +27,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Reverse this schema change when safe."""
-    ${downgrades if downgrades else "pass"}
+    ${downgrades if downgrades else "pass"} 
