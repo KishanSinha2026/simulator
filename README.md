@@ -1,4 +1,4 @@
-# VPM360 Enterprise Integration Simulator
+# VPM360 Integration Simulator
 
 Enterprise vulnerability management and remediation integration simulator for **IndusInd Bank VPM360**, implementing the full specifications defined in **BRD, HLD & TDD Section 4**.
 
