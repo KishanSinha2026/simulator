@@ -1,4 +1,10 @@
-"""API provider for Tenable Vulnerability Management."""
+"""API provider for Tenable Vulnerability Management.
+
+The current API route uses Tenable's Workbench Vulnerabilities endpoint.
+That endpoint is not assumed to return the complete per-host 54-field export
+shown in VPM360 BRD Appendix A. `normalize_tenable_record` maps available
+fields and records the missing BRD fields for inspection.
+"""
 
 import time
 from typing import Any
@@ -6,6 +12,7 @@ from typing import Any
 import httpx
 
 from app.core.config import get_settings
+from app.providers.tenable_normalizer import normalize_tenable_record
 
 
 class TenableAPIProvider:
@@ -150,13 +157,14 @@ class TenableAPIProvider:
         offset: int = 0,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """List Tenable workbench vulnerability summaries.
+        """List Tenable Workbench vulnerability summaries.
 
-        This is a plugin-level workbench listing, not a complete
-        per-host vulnerability export. The workbench endpoint is
-        limited to 5,000 results.
+        This endpoint returns a plugin-level Workbench representation; it is
+        not assumed to be the complete per-host 54-field scanner export. The
+        endpoint is limited to 5,000 results. Pagination/contract must be
+        validated against the client's actual Tenable deployment.
         """
-        if not 1 <= limit <= 5000:
+        if not 1 <= limit <= self.MAX_WORKBENCH_RESULTS:
             raise ValueError("limit must be between 1 and 5000")
 
         if offset < 0:
@@ -164,8 +172,8 @@ class TenableAPIProvider:
 
         if offset >= self.MAX_WORKBENCH_RESULTS:
             raise ValueError(
-                "The workbench endpoint returns at most 5000 results. "
-                "Use Tenable's vulnerability export API for larger datasets."
+                "The Workbench endpoint returns at most 5000 results. "
+                "Use a confirmed export API for larger datasets."
             )
 
         query_filters = filters or {}
@@ -187,18 +195,22 @@ class TenableAPIProvider:
 
             if severity not in {
                 "info",
+                "informational",
                 "low",
                 "medium",
                 "high",
                 "critical",
             }:
                 raise ValueError(
-                    "severity must be info, low, medium, high, or critical"
+                    "severity must be informational, info, low, medium, "
+                    "high, or critical"
                 )
 
             params["filter.0.filter"] = "severity"
             params["filter.0.quality"] = "eq"
-            params["filter.0.value"] = severity
+            params["filter.0.value"] = (
+                "info" if severity == "informational" else severity
+            )
 
         data = self._get(
             "/workbenches/vulnerabilities",
@@ -247,45 +259,25 @@ class TenableAPIProvider:
         return self._normalize_finding(info)
 
     @staticmethod
-    def _normalize_finding(
-        item: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Normalize fields available in a Tenable workbench response."""
-        plugin_id = item.get("plugin_id")
-        plugin_name = item.get("plugin_name")
+    def _normalize_finding(item: dict[str, Any]) -> dict[str, Any]:
+        """Normalize the received record using the VPM360 BRD field map."""
+        normalized = normalize_tenable_record(item)
+        plugin_id = normalized.get("plugin_id")
 
-        return {
-            # This identifies the returned plugin summary. It is not a
-            # unique source ID for an individual host-level finding.
-            "id": (
-                f"plugin-{plugin_id}"
-                if plugin_id is not None
-                else None
-            ),
-            "source_finding_id": None,
-            "plugin_id": plugin_id,
-            "plugin_name": plugin_name,
-            "severity": item.get("severity"),
-            "synopsis": item.get("synopsis"),
-            "description": item.get("description"),
-            "plugin_output": item.get("plugin_output"),
-            "steps_to_remediate": item.get(
-                "solution",
-                item.get("steps_to_remediate"),
-            ),
-            "cvss_v3_base_score": item.get("cvss3_base_score"),
-            "cvss_v4_base_score": item.get("cvss4_base_score"),
-            "ip_address": item.get("ip_address"),
-            "dns_name": item.get("dns_name"),
-            "host_id": item.get("host_id"),
-            "first_discovered": item.get("first_discovered"),
-            "last_observed": item.get("last_observed"),
-            "repository": item.get("repository"),
-            "protocol": item.get("protocol"),
-            "port": item.get("port"),
-            "cve_ids": item.get("cve", []) or [],
-            "count": item.get("count"),
-            "plugin_family": item.get("plugin_family"),
-            "vulnerability_state": item.get("vulnerability_state"),
-            "source_payload": item,
-        }
+        # Retain historical API keys used by callers, while ensuring the
+        # field map and complete received JSON remain available in payload.
+        normalized.update(
+            {
+                # A plugin ID is not a host-level finding ID. This legacy
+                # display identifier must not be used as a database identity.
+                "id": (
+                    f"plugin-{plugin_id}"
+                    if plugin_id is not None
+                    else None
+                ),
+                "count": item.get("count"),
+                "plugin_family": item.get("plugin_family"),
+                "vulnerability_state": item.get("vulnerability_state"),
+            }
+        )
+        return normalized

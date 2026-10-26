@@ -1,4 +1,4 @@
-"""Pydantic schemas for Tenable vulnerability findings."""
+"""Pydantic schemas for VPM360 Tenable vulnerability findings."""
 
 from datetime import datetime
 from typing import Any
@@ -7,12 +7,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    computed_field,
     field_validator,
 )
 
 
 class TenableFindingBase(BaseModel):
-    """Common fields for a Tenable vulnerability finding."""
+    """Common fields persisted for a Tenable finding."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -23,10 +24,7 @@ class TenableFindingBase(BaseModel):
     scan_id: int | None = None
 
     plugin_id: int | None = Field(default=None, gt=0)
-    plugin_name: str | None = Field(
-        default=None,
-        max_length=500,
-    )
+    plugin_name: str | None = Field(default=None, max_length=500)
 
     ip_address: str | None = Field(default=None, max_length=45)
     dns_name: str | None = Field(default=None, max_length=255)
@@ -39,14 +37,10 @@ class TenableFindingBase(BaseModel):
     steps_to_remediate: str | None = None
 
     cvss_v3_base_score: float | None = Field(
-        default=None,
-        ge=0,
-        le=10,
+        default=None, ge=0, le=10
     )
     cvss_v4_base_score: float | None = Field(
-        default=None,
-        ge=0,
-        le=10,
+        default=None, ge=0, le=10
     )
 
     first_discovered: datetime | None = None
@@ -57,36 +51,29 @@ class TenableFindingBase(BaseModel):
     port: int | None = Field(default=None, ge=0, le=65535)
 
     source_payload: dict[str, Any] | None = Field(
-        default_factory=dict,
+        default_factory=dict
     )
 
 
 class TenableFindingCreate(TenableFindingBase):
-    """Schema for creating a simulated Tenable finding."""
+    """Schema for manually creating a simulated finding."""
 
     plugin_id: int = Field(gt=0)
     plugin_name: str = Field(min_length=1, max_length=500)
-
-    # The service will persist these in tenable_finding_cves,
-    # rather than passing this field directly to TenableFinding.
     cve_ids: list[str] = Field(default_factory=list)
 
     @field_validator("plugin_name")
     @classmethod
     def validate_plugin_name(cls, value: str) -> str:
-        """Reject blank plugin names."""
         value = value.strip()
-
         if not value:
             raise ValueError("plugin_name cannot be blank")
-
         return value
 
     @field_validator("cve_ids")
     @classmethod
     def validate_cve_ids(cls, values: list[str]) -> list[str]:
-        """Normalize CVE identifiers and remove duplicates."""
-        normalized = []
+        normalized: list[str] = []
 
         for value in values:
             cve = value.strip().upper()
@@ -101,7 +88,7 @@ class TenableFindingCreate(TenableFindingBase):
 
 
 class TenableFindingCVEResponse(BaseModel):
-    """CVE association returned for a Tenable finding."""
+    """CVE association returned for a finding."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -111,7 +98,7 @@ class TenableFindingCVEResponse(BaseModel):
 
 
 class TenableFindingResponse(TenableFindingBase):
-    """Schema returned by the Tenable findings API."""
+    """Finding response with access to BRD source-field coverage."""
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -123,12 +110,60 @@ class TenableFindingResponse(TenableFindingBase):
     updated_at: datetime
 
     cves: list[TenableFindingCVEResponse] = Field(
-        default_factory=list,
+        default_factory=list
     )
+
+    @computed_field
+    @property
+    def brd_54_fields(self) -> dict[str, Any]:
+        """Return the 54 exact BRD field labels and received values."""
+        payload = self.source_payload or {}
+        snapshot = payload.get("_brd_54_fields")
+
+        if isinstance(snapshot, dict):
+            return snapshot
+
+        return {}
+
+    @computed_field
+    @property
+    def normalized_cvss_base_score(self) -> float | None:
+        """Prefer CVSS V3 base score, falling back to V4."""
+        payload = self.source_payload or {}
+        metadata = payload.get("_brd_normalization")
+
+        if isinstance(metadata, dict):
+            score = metadata.get("normalized_cvss_base_score")
+
+            if isinstance(score, (int, float)) and not isinstance(
+                score, bool
+            ):
+                return float(score)
+
+        # Legacy records without normalizer metadata use the same precedence.
+        if self.cvss_v3_base_score is not None:
+            return self.cvss_v3_base_score
+
+        return self.cvss_v4_base_score
+
+    @computed_field
+    @property
+    def actionable(self) -> bool:
+        """Informational records remain stored but are not actionable."""
+        payload = self.source_payload or {}
+        metadata = payload.get("_brd_normalization")
+
+        if isinstance(metadata, dict):
+            value = metadata.get("actionable")
+            if isinstance(value, bool):
+                return value
+
+        severity = (self.severity or "").strip().lower()
+        return severity not in {"info", "informational"}
 
 
 class TenableFindingListResponse(BaseModel):
-    """Paginated list of Tenable findings."""
+    """Paginated list of findings."""
 
     model_config = ConfigDict(extra="forbid")
 
