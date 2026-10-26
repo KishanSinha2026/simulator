@@ -49,25 +49,24 @@ class Settings(BaseSettings):
     api_timeout_seconds: float = Field(default=30, gt=0)
     api_max_retries: int = Field(default=3, ge=0, le=10)
 
+    # ---------------------------------------------------------
     # Tenable
+    # ---------------------------------------------------------
     tenable_base_url: str = ""
     tenable_access_key: SecretStr | None = None
     tenable_secret_key: SecretStr | None = None
     tenable_verify_tls: bool = True
 
-    # Paths supplied in the BRD.
+    # Routes supplied in the BRD.
     tenable_scan_result_path: str = "/rest/scanResult"
     tenable_analysis_path: str = "/rest/analysis"
 
-    # The BRD supplies a fields query for scanResult. Its actual behavior
-    # must be validated against the installed client API.
     tenable_scan_result_fields: str = (
         "id,name,description,status,details,resultType,startTime,"
         "finishtime,scanduration,repository"
     )
 
-    # Client contract settings. None/blank means the API provider must
-    # not activate because the contract has not been confirmed.
+    # Client contract values must be confirmed before API activation.
     tenable_auth_header_name: str = ""
     tenable_auth_header_prefix: str = ""
 
@@ -77,27 +76,63 @@ class Settings(BaseSettings):
     tenable_analysis_id_param: str = ""
     tenable_analysis_id_location: TenableRequestLocation | None = None
 
-    # Set to "none" only after confirming that scanResult returns the
-    # complete result set. Otherwise configure the approved paging contract.
     tenable_scan_result_paging_mode: TenablePagingMode | None = None
     tenable_scan_result_offset_param: str = ""
     tenable_scan_result_limit_param: str = ""
-    tenable_scan_result_page_size: int = Field(default=100, ge=1, le=1000)
+    tenable_scan_result_page_size: int = Field(
+        default=100,
+        ge=1,
+        le=1000,
+    )
     tenable_max_scan_results: int = Field(default=10000, ge=1)
 
-    # BMC Helix CMDB
+    # ---------------------------------------------------------
+    # BMC Helix CMDB - read/correlation configuration
+    # ---------------------------------------------------------
     cmdb_base_url: str = ""
     cmdb_username: str = ""
     cmdb_password: SecretStr | None = None
     cmdb_verify_tls: bool = True
 
+    # No default dataset is assumed. Set this to the client-approved
+    # dataset before enabling CMDB_PROVIDER=api.
+    cmdb_dataset_id: str = ""
+
+    # BRD defaults; confirm against the client CMDB environment.
+    cmdb_namespace: str = "BMC.CORE"
+    cmdb_server_class: str = "BMC_ComputerSystem"
+    cmdb_ip_endpoint_class: str = "BMC_IPEndpoint"
+
+    # Must be confirmed by the IndusInd CMDB team before graph traversal.
+    cmdb_relationship_class: str = ""
+
+    # ---------------------------------------------------------
+    # BMC Helix CMDB - writeback configuration
+    # ---------------------------------------------------------
+    # Keep disabled until IndusInd approves writeback timing,
+    # permissions, dataset/class mapping, and exact attribute names.
+    cmdb_writeback_enabled: bool = False
+
+    cmdb_writeback_dataset_id: str = ""
+    cmdb_writeback_namespace: str = ""
+    cmdb_writeback_class_name: str = ""
+
+    # Do not invent the real attribute names; obtain them from
+    # the CMDB attribute metadata and client confirmation.
+    cmdb_os_version_attribute: str = ""
+    cmdb_last_patch_attribute: str = ""
+
+    # ---------------------------------------------------------
     # BMC Helix ITSM
+    # ---------------------------------------------------------
     itsm_base_url: str = ""
     itsm_username: str = ""
     itsm_password: SecretStr | None = None
     itsm_verify_tls: bool = True
 
+    # ---------------------------------------------------------
     # Red Hat Satellite
+    # ---------------------------------------------------------
     satellite_base_url: str = ""
     satellite_username: str = ""
     satellite_password: SecretStr | None = None
@@ -106,6 +141,7 @@ class Settings(BaseSettings):
     @field_validator("app_env", "log_level", mode="before")
     @classmethod
     def normalize_text_settings(cls, value: str) -> str:
+        """Normalize environment and log-level values."""
         if isinstance(value, str):
             return value.strip().lower()
         return value
@@ -118,6 +154,7 @@ class Settings(BaseSettings):
     )
     @classmethod
     def normalize_base_urls(cls, value: str) -> str:
+        """Remove whitespace and trailing slashes from base URLs."""
         return value.strip().rstrip("/")
 
     @field_validator(
@@ -126,12 +163,45 @@ class Settings(BaseSettings):
     )
     @classmethod
     def validate_tenable_path(cls, value: str) -> str:
+        """Require absolute API paths without a double leading slash."""
         value = value.strip()
 
         if not value.startswith("/") or value.startswith("//"):
-            raise ValueError("Tenable endpoint paths must start with '/'")
+            raise ValueError(
+                "Tenable endpoint paths must start with '/'"
+            )
 
         return value
+
+    @field_validator(
+        "cmdb_namespace",
+        "cmdb_server_class",
+        "cmdb_ip_endpoint_class",
+    )
+    @classmethod
+    def validate_cmdb_identifiers(cls, value: str) -> str:
+        """Normalize configured CMDB namespace and class identifiers."""
+        value = value.strip()
+
+        if not value:
+            raise ValueError("CMDB namespace/class values cannot be blank")
+
+        return value
+
+    @field_validator(
+        "cmdb_writeback_dataset_id",
+        "cmdb_writeback_namespace",
+        "cmdb_writeback_class_name",
+        "cmdb_os_version_attribute",
+        "cmdb_last_patch_attribute",
+    )
+    @classmethod
+    def normalize_optional_cmdb_writeback_values(
+        cls,
+        value: str,
+    ) -> str:
+        """Normalize optional writeback values without inventing defaults."""
+        return value.strip()
 
     def provider_for(self, integration: str) -> ProviderMode:
         """Return the configured provider for the selected integration."""
