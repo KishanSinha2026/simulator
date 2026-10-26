@@ -26,9 +26,9 @@ class CMDBJsonProvider:
     }
 
     def __init__(self) -> None:
-        self.servers = JsonProvider("cmdb/servers.json")
-        self.middleware = JsonProvider("cmdb/middleware.json")
-        self.databases = JsonProvider("cmdb/databases.json")
+        self.servers = JsonProvider("cmdb/multiservers.json")
+        self.middleware = JsonProvider("cmdb/multimiddleware.json")
+        self.databases = JsonProvider("cmdb/multidatabases.json")
 
     @staticmethod
     def _get_by_source_id(
@@ -183,4 +183,4 @@ class CMDBJsonProvider:
             raise ValueError("source_instance_id is required")
         record["source_instance_id"] = str(source_id).strip()
         record.setdefault("id", record["source_instance_id"])
-        return self.databases.create_record(record)
+        return self.databases.create_record(record)

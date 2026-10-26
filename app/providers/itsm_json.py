@@ -10,8 +10,8 @@ class ITSMJsonProvider:
     """Read and create simulated ITSM changes using JSON fixtures with duplicate handling."""
 
     def __init__(self) -> None:
-        self.changes = JsonProvider("itsm/changes.json")
-        self.worklogs = JsonProvider("itsm/worklogs.json")
+        self.changes = JsonProvider("itsm/multichanges.json")
+        self.worklogs = JsonProvider("itsm/multiworklogs.json")
 
     def get_change(
         self,
