@@ -39,6 +39,10 @@ class TenableService:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
+        # If DB is empty, auto-populate from active provider (API or JSON fixture)
+        if self.db.query(TenableFinding).count() == 0:
+            self.import_provider_findings()
+
         query = self.db.query(TenableFinding)
 
         if severity:
@@ -294,6 +298,10 @@ class TenableService:
             raise ValueError("limit must be between 1 and 500")
         if offset < 0:
             raise ValueError("offset cannot be negative")
+
+        # If DB is empty, auto-populate scans from provider
+        if self.db.query(TenableScan).count() == 0:
+            self.import_provider_findings()
 
         query = self.db.query(TenableScan)
         total = query.count()

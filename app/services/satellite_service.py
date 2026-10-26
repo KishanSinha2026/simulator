@@ -54,6 +54,10 @@ class SatelliteService:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
+        # Auto-import from active provider (API or JSON fixture) if database is empty
+        if self.db.query(SatelliteHost).count() == 0:
+            self.import_provider_data()
+
         query = self.db.query(SatelliteHost)
         total = query.count()
 
@@ -131,6 +135,10 @@ class SatelliteService:
 
         if offset < 0:
             raise ValueError("offset cannot be negative")
+
+        # Auto-import from active provider (API or JSON fixture) if database is empty
+        if self.db.query(SatelliteJobTemplate).count() == 0:
+            self.import_provider_data()
 
         query = self.db.query(SatelliteJobTemplate)
         total = query.count()
@@ -216,6 +224,9 @@ class SatelliteService:
 
         if len(set(payload.host_ids)) != len(payload.host_ids):
             raise ValueError("Duplicate host IDs are not allowed")
+
+        if self.db.query(SatelliteJobTemplate).count() == 0:
+            self.import_provider_data()
 
         template = self.template_repository.get_by_source_id(
             payload.template_id

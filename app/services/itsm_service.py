@@ -65,6 +65,10 @@ class ITSMService:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
+        # Auto-import from active provider (API or JSON fixture) if database is empty
+        if self.db.query(ITSMChange).count() == 0:
+            self.import_provider_changes()
+
         query = self.db.query(ITSMChange)
 
         if status:

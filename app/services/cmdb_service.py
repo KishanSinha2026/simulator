@@ -63,6 +63,10 @@ class CMDBService:
         """List persisted server CIs with optional filters."""
         self._validate_pagination(limit, offset)
 
+        # Auto-import from active provider (API or JSON fixture) if database is empty
+        if self.db.query(CMDBServer).count() == 0:
+            self.import_provider_data()
+
         query = self.db.query(CMDBServer)
 
         if status:
@@ -104,6 +108,9 @@ class CMDBService:
 
         if not normalized_ip:
             raise ValueError("ip_address cannot be blank")
+
+        if self.db.query(CMDBServer).count() == 0:
+            self.import_provider_data()
 
         return self.repository.get_by_ip(normalized_ip)
 

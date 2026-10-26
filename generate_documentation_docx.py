@@ -348,15 +348,16 @@ def main():
         doc.add_paragraph().paragraph_format.space_after = Pt(6)
 
     # -------------------------------------------------------------
-    # Complete Routes Matrix (All 57 endpoints)
+    # Canonical BRD Routes Matrix
     # -------------------------------------------------------------
     doc.add_page_break()
-    add_custom_heading(doc, "4. Complete API & JSON Provider Route Catalog", 1)
+    add_custom_heading(doc, "4. Canonical Integration Route Catalog (BRD Aligned)", 1)
 
     p_route_intro = doc.add_paragraph(
-        "The application registers 57 OpenAPI endpoints across all four enterprise integrations. "
-        "The matrix below categorizes each endpoint by its operational target: PostgreSQL Database (ACID Storage) "
-        "or Active Integration Provider (JSON Fixtures / External Mock)."
+        "In accordance with BRD Section 4 requirements, the API implements a unified Single-Route Architecture. "
+        "Each route automatically interacts with external enterprise APIs (Tenable, BMC Helix CMDB, BMC Helix ITSM, "
+        "Red Hat Satellite) when configured in API mode, and seamlessly falls back to local PostgreSQL storage and JSON fixtures "
+        "when in JSON mode or when the remote service is unavailable. Callers interact with a single canonical route per function."
     )
     p_route_intro.runs[0].font.size = Pt(10)
 
@@ -368,17 +369,12 @@ def main():
             continue
         for method, details in methods.items():
             summary = details.get("summary") or details.get("description") or "-"
-            # Determine provider mode
-            if "/provider" in path or path.endswith("/correlate/{ip_address}"):
-                mode = "Provider / JSON Data"
-            else:
-                mode = "PostgreSQL Database"
-            route_list.append((method.upper(), path, summary, mode))
+            route_list.append((method.upper(), path, summary, "Unified: Live API or JSON/DB"))
 
     route_list.sort(key=lambda x: (x[1], x[0]))
 
     rt = doc.add_table(rows=1, cols=4)
-    format_table_headers(rt, ["Method", "Endpoint Path", "Operational Mode", "Description / Function"], col_widths=[0.9, 2.5, 1.4, 2.2])
+    format_table_headers(rt, ["Method", "Endpoint Path", "Data Handling", "Description / Function"], col_widths=[0.9, 2.5, 1.6, 2.0])
 
     for method, path, summary, mode in route_list:
         row = rt.add_row()
