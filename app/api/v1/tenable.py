@@ -204,103 +204,20 @@ def create_scan(
 
 
 # ======================================================================
-# Provider / JSON Data Routes (Mock & Live API integration)
+# Data Import & Synchronization Route
 # ======================================================================
 
 
-@router.get(
-    "/provider/findings",
-)
-def list_provider_findings(
-    limit: int = Query(default=100, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0),
-    severity: str | None = Query(default=None, min_length=1),
-    actionable_only: bool = Query(default=False),
-    service: TenableService = Depends(get_tenable_service),
-) -> list[dict[str, Any]]:
-    """Preview findings directly from the configured provider (JSON fixture or Tenable API)."""
-    try:
-        filter_dict: dict[str, Any] = {}
-        if severity:
-            filter_dict["severity"] = severity
-        records = service.list_provider_findings(
-            limit=limit,
-            offset=offset,
-            filters=filter_dict or None,
-        )
-        if actionable_only:
-            records = [
-                r for r in records
-                if r.get("source_payload", {}).get("_brd_normalization", {}).get("actionable") is not False
-            ]
-        return records
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-
-
-@router.get(
-    "/provider/scans",
-)
-def list_provider_scans(
-    limit: int = Query(default=100, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0),
-    service: TenableService = Depends(get_tenable_service),
-) -> list[dict[str, Any]]:
-    """Preview scans directly from the configured provider (JSON fixture or Tenable API)."""
-    try:
-        return service.list_provider_scans(limit=limit, offset=offset)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-
-
 @router.post(
-    "/provider/findings",
-    status_code=status.HTTP_201_CREATED,
-)
-def create_provider_finding(
-    payload: dict[str, Any],
-    service: TenableService = Depends(get_tenable_service),
-) -> dict[str, Any]:
-    """Create a simulated finding directly in the active JSON provider."""
-    try:
-        return service.create_provider_finding(payload)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
-
-
-@router.post(
-    "/provider/import",
+    "/import",
     response_model=TenableImportResponse,
 )
-def import_provider_findings(
+def import_findings(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     service: TenableService = Depends(get_tenable_service),
 ) -> dict[str, Any]:
-    """Import and normalize findings from the provider into PostgreSQL.
-
-    In API mode, the provider will not activate until the client-specific
-    authentication, method, ID parameter and paging settings are configured.
-    """
+    """Import and normalize findings and scans from the active provider into PostgreSQL."""
     try:
         return service.import_provider_findings(
             limit=limit,
@@ -319,5 +236,78 @@ def import_provider_findings(
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unable to import Tenable findings.",
+            detail="Unable to import Tenable data.",
         ) from None
+
+
+# ======================================================================
+# Provider / JSON Aliases (Hidden from Swagger UI to prevent duplicates)
+# ======================================================================
+
+
+@router.get(
+    "/provider/findings",
+    include_in_schema=False,
+)
+def list_provider_findings(
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    severity: str | None = Query(default=None, min_length=1),
+    actionable_only: bool = Query(default=False),
+    service: TenableService = Depends(get_tenable_service),
+) -> list[dict[str, Any]]:
+    """Preview findings directly from the configured provider."""
+    filter_dict: dict[str, Any] = {}
+    if severity:
+        filter_dict["severity"] = severity
+    records = service.list_provider_findings(
+        limit=limit,
+        offset=offset,
+        filters=filter_dict or None,
+    )
+    if actionable_only:
+        records = [
+            r for r in records
+            if r.get("source_payload", {}).get("_brd_normalization", {}).get("actionable") is not False
+        ]
+    return records
+
+
+@router.get(
+    "/provider/scans",
+    include_in_schema=False,
+)
+def list_provider_scans(
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    service: TenableService = Depends(get_tenable_service),
+) -> list[dict[str, Any]]:
+    """Preview scans directly from the configured provider."""
+    return service.list_provider_scans(limit=limit, offset=offset)
+
+
+@router.post(
+    "/provider/findings",
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
+def create_provider_finding(
+    payload: dict[str, Any],
+    service: TenableService = Depends(get_tenable_service),
+) -> dict[str, Any]:
+    """Create a simulated finding directly in the active JSON provider."""
+    return service.create_provider_finding(payload)
+
+
+@router.post(
+    "/provider/import",
+    response_model=TenableImportResponse,
+    include_in_schema=False,
+)
+def import_provider_findings_alias(
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    service: TenableService = Depends(get_tenable_service),
+) -> dict[str, Any]:
+    """Alias for /import preserving backwards compatibility."""
+    return service.import_provider_findings(limit=limit, offset=offset)

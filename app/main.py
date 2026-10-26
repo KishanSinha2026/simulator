@@ -59,13 +59,19 @@ for router in (
     tenable.router,
     cmdb.router,
     itsm.router,
-    itsm.istm_router,
     satellite.router,
 ):
     app.include_router(
         router,
         prefix=settings.api_v1_prefix,
     )
+
+# Include istm alias without duplicating routes in OpenAPI docs
+app.include_router(
+    itsm.istm_router,
+    prefix=settings.api_v1_prefix,
+    include_in_schema=False,
+)
 
 
 

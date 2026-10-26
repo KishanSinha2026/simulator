@@ -263,12 +263,29 @@ def list_change_history(
 
 
 # ======================================================================
-# Provider / JSON Data Routes (Mock & Live API integration)
+# Data Import & Synchronization Route
+# ======================================================================
+
+
+@router.post(
+    "/import",
+    response_model=ITSMImportResponse,
+)
+def import_itsm_data(
+    service: ITSMService = Depends(get_itsm_service),
+):
+    """Import changes and worklogs from active provider into PostgreSQL."""
+    return service.import_provider_changes()
+
+
+# ======================================================================
+# Provider / JSON Aliases (Hidden from Swagger UI to prevent duplicates)
 # ======================================================================
 
 
 @router.get(
     "/provider/changes",
+    include_in_schema=False,
 )
 def list_provider_changes(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -276,13 +293,14 @@ def list_provider_changes(
     status: str | None = Query(default=None),
     service: ITSMService = Depends(get_itsm_service),
 ) -> list[dict[str, Any]]:
-    """Preview changes directly from the active provider (JSON fixture or ITSM API)."""
+    """Preview changes directly from the active provider."""
     filters = {"status": status} if status else None
     return service.list_provider_changes(limit=limit, offset=offset, filters=filters)
 
 
 @router.get(
     "/provider/worklogs",
+    include_in_schema=False,
 )
 def list_provider_worklogs(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -296,30 +314,27 @@ def list_provider_worklogs(
 @router.post(
     "/provider/changes",
     status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
 )
 def create_provider_change(
     payload: dict[str, Any],
     service: ITSMService = Depends(get_itsm_service),
 ) -> dict[str, Any]:
     """Create a simulated change directly in the active JSON provider."""
-    try:
-        return service.create_provider_change(payload)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    return service.create_provider_change(payload)
 
 
 @router.post(
     "/provider/import",
     response_model=ITSMImportResponse,
+    include_in_schema=False,
 )
-def import_provider_changes(
+def import_provider_changes_alias(
     service: ITSMService = Depends(get_itsm_service),
 ):
-    """Import changes and worklogs from active provider into PostgreSQL."""
+    """Alias for /import preserving backwards compatibility."""
     return service.import_provider_changes()
+
 
 
 # ======================================================================
@@ -337,4 +352,5 @@ istm_router.add_api_route("/changes/{change_id}/history", list_change_history, m
 istm_router.add_api_route("/provider/changes", list_provider_changes, methods=["GET"])
 istm_router.add_api_route("/provider/worklogs", list_provider_worklogs, methods=["GET"])
 istm_router.add_api_route("/provider/changes", create_provider_change, methods=["POST"], status_code=status.HTTP_201_CREATED)
-istm_router.add_api_route("/provider/import", import_provider_changes, methods=["POST"], response_model=ITSMImportResponse)
+istm_router.add_api_route("/provider/import", import_provider_changes_alias, methods=["POST"], response_model=ITSMImportResponse)
+istm_router.add_api_route("/import", import_itsm_data, methods=["POST"], response_model=ITSMImportResponse)

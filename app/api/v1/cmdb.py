@@ -450,12 +450,29 @@ def create_relationship(
 
 
 # ======================================================================
-# Provider / JSON Data Routes (Mock & Live API integration)
+# Data Import & Synchronization Route
+# ======================================================================
+
+
+@router.post(
+    "/import",
+    response_model=CMDBImportResponse,
+)
+def import_cmdb_data(
+    service: CMDBService = Depends(get_cmdb_service),
+):
+    """Import servers, middleware, and databases from the active provider into PostgreSQL."""
+    return service.import_provider_data()
+
+
+# ======================================================================
+# Provider / JSON Aliases (Hidden from Swagger UI to prevent duplicates)
 # ======================================================================
 
 
 @router.get(
     "/provider/servers",
+    include_in_schema=False,
 )
 def list_provider_servers(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -463,13 +480,14 @@ def list_provider_servers(
     status: str | None = Query(default=None),
     service: CMDBService = Depends(get_cmdb_service),
 ) -> list[dict[str, Any]]:
-    """Preview server CIs directly from the active provider (JSON fixture or CMDB API)."""
+    """Preview server CIs directly from the active provider."""
     filters = {"status": status} if status else None
     return service.list_provider_servers(limit=limit, offset=offset, filters=filters)
 
 
 @router.get(
     "/provider/middleware",
+    include_in_schema=False,
 )
 def list_provider_middleware(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -482,6 +500,7 @@ def list_provider_middleware(
 
 @router.get(
     "/provider/databases",
+    include_in_schema=False,
 )
 def list_provider_databases(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -494,6 +513,7 @@ def list_provider_databases(
 
 @router.get(
     "/provider/by-ip/{ip_address}",
+    include_in_schema=False,
 )
 def find_provider_servers_by_ip(
     ip_address: str,
@@ -506,27 +526,23 @@ def find_provider_servers_by_ip(
 @router.post(
     "/provider/servers",
     status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
 )
 def create_provider_server(
     payload: dict[str, Any],
     service: CMDBService = Depends(get_cmdb_service),
 ) -> dict[str, Any]:
     """Create a server CI directly in the JSON fixture provider."""
-    try:
-        return service.create_provider_server(payload)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    return service.create_provider_server(payload)
 
 
 @router.post(
     "/provider/import",
     response_model=CMDBImportResponse,
+    include_in_schema=False,
 )
-def import_provider_data(
+def import_provider_data_alias(
     service: CMDBService = Depends(get_cmdb_service),
 ):
-    """Import servers, middleware, and databases from the active provider into PostgreSQL."""
+    """Alias for /import preserving backwards compatibility."""
     return service.import_provider_data()

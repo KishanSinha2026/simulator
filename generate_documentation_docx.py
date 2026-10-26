@@ -389,10 +389,14 @@ def main():
 
     style_table_rows(rt, col_widths=[0.9, 2.5, 1.4, 2.2])
 
-    # Save document
     filename = "VPM360_Database_Tables_and_Schemas.docx"
-    doc.save(filename)
-    print(f"Successfully generated {filename}")
+    try:
+        doc.save(filename)
+        print(f"Successfully generated {filename}")
+    except PermissionError:
+        fallback_filename = "VPM360_Database_Tables_and_Schemas_v2.docx"
+        doc.save(fallback_filename)
+        print(f"Primary file was locked in Word. Saved updated document to {fallback_filename}")
 
 
 if __name__ == "__main__":

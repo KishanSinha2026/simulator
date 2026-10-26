@@ -311,24 +311,42 @@ def get_host_result(
 
 
 # ======================================================================
-# Provider / JSON Data Routes (Mock & Live API integration)
+# Data Import & Synchronization Route
+# ======================================================================
+
+
+@router.post(
+    "/import",
+    response_model=SatelliteImportResponse,
+)
+def import_satellite_data(
+    service: SatelliteService = Depends(get_satellite_service),
+):
+    """Import hosts and job templates from the active provider into PostgreSQL."""
+    return service.import_provider_data()
+
+
+# ======================================================================
+# Provider / JSON Aliases (Hidden from Swagger UI to prevent duplicates)
 # ======================================================================
 
 
 @router.get(
     "/provider/hosts",
+    include_in_schema=False,
 )
 def list_provider_hosts(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     service: SatelliteService = Depends(get_satellite_service),
 ) -> list[dict[str, Any]]:
-    """Preview hosts directly from the active provider (JSON fixture or Satellite API)."""
+    """Preview hosts directly from the active provider."""
     return service.list_provider_hosts(limit=limit, offset=offset)
 
 
 @router.get(
     "/provider/job-templates",
+    include_in_schema=False,
 )
 def list_provider_job_templates(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -341,6 +359,7 @@ def list_provider_job_templates(
 
 @router.get(
     "/provider/jobs",
+    include_in_schema=False,
 )
 def list_provider_job_runs(
     limit: int = Query(default=100, ge=1, le=1000),
@@ -354,66 +373,52 @@ def list_provider_job_runs(
 @router.post(
     "/provider/hosts",
     status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
 )
 def create_provider_host(
     payload: dict[str, Any],
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:
     """Create a host directly in the active JSON fixture provider."""
-    try:
-        return service.create_provider_host(payload)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    return service.create_provider_host(payload)
 
 
 @router.post(
     "/provider/jobs",
     status_code=status.HTTP_202_ACCEPTED,
+    include_in_schema=False,
 )
 def launch_provider_job(
     payload: SatelliteJobLaunchRequest,
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:
     """Launch or simulate a job directly using the active provider."""
-    try:
-        return service.launch_provider_job(
-            template_id=payload.template_id,
-            host_ids=payload.host_ids,
-            inputs=payload.inputs,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    return service.launch_provider_job(
+        template_id=payload.template_id,
+        host_ids=payload.host_ids,
+        inputs=payload.inputs,
+    )
 
 
 @router.post(
     "/provider/jobs/{job_run_id}/cancel",
+    include_in_schema=False,
 )
 def cancel_provider_job(
     job_run_id: str,
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:
     """Cancel a job directly via the active provider."""
-    try:
-        return service.cancel_provider_job(job_run_id)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=str(exc),
-        ) from exc
+    return service.cancel_provider_job(job_run_id)
 
 
 @router.post(
     "/provider/import",
     response_model=SatelliteImportResponse,
+    include_in_schema=False,
 )
-def import_provider_data(
+def import_provider_data_alias(
     service: SatelliteService = Depends(get_satellite_service),
 ):
-    """Import hosts and job templates from the active provider into PostgreSQL."""
+    """Alias for /import preserving backwards compatibility."""
     return service.import_provider_data()
