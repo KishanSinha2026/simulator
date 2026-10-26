@@ -64,3 +64,5 @@ temp/
 
 # Docker local overrides
 docker-compose.override.yml
+
+data/
