@@ -254,6 +254,18 @@ class TenableService:
                 except (TypeError, ValueError):
                     errors += 1
 
+            # Also import provider scans if available
+            if hasattr(self.provider, "list_scans"):
+                for s in self.provider.list_scans():
+                    scan_id = str(s.get("id") or s.get("source_scan_id") or "")
+                    if scan_id and not self.scan_repository.get_by_source_id(scan_id):
+                        self.scan_repository.create({
+                            "source_scan_id": scan_id,
+                            "name": s.get("name", f"Scan {scan_id}"),
+                            "status": s.get("status", "completed"),
+                            "source_payload": s,
+                        })
+
             self.db.commit()
 
         except Exception:

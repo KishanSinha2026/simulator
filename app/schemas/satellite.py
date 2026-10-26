@@ -163,7 +163,7 @@ class SatelliteJobRunResponse(BaseModel):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     source_payload: dict[str, Any] | None = None
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class SatelliteJobRunListResponse(BaseModel):

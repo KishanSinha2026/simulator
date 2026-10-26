@@ -274,7 +274,10 @@ class SatelliteService:
             self.db.refresh(job)
 
             return {
-                "job": job,
+                "id": job.id,
+                "job_id": job.id,
+                "template_id": job.template_id,
+                "status": job.status,
                 "simulation": True,
                 "message": (
                     "Simulated job request recorded; "

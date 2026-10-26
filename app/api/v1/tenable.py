@@ -220,14 +220,20 @@ def list_provider_findings(
 ) -> list[dict[str, Any]]:
     """Preview findings directly from the configured provider (JSON fixture or Tenable API)."""
     try:
-        return service.list_provider_findings(
+        filter_dict: dict[str, Any] = {}
+        if severity:
+            filter_dict["severity"] = severity
+        records = service.list_provider_findings(
             limit=limit,
             offset=offset,
-            filters={
-                "severity": severity,
-                "actionable_only": actionable_only,
-            },
+            filters=filter_dict or None,
         )
+        if actionable_only:
+            records = [
+                r for r in records
+                if r.get("source_payload", {}).get("_brd_normalization", {}).get("actionable") is not False
+            ]
+        return records
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
