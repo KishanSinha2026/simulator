@@ -169,6 +169,61 @@ class TenableFindingListResponse(BaseModel):
 
     items: list[TenableFindingResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
+
+
+class TenableScanBase(BaseModel):
+    """Common fields for a Tenable scan."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        from_attributes=True,
+    )
+
+    source_scan_id: str = Field(min_length=1, max_length=100)
+    name: str | None = Field(default=None, max_length=255)
+    status: str | None = Field(default=None, max_length=50)
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    source_payload: dict[str, Any] | None = Field(default_factory=dict)
+
+
+class TenableScanCreate(TenableScanBase):
+    """Schema for creating a Tenable scan record."""
+
+
+class TenableScanResponse(TenableScanBase):
+    """Schema for returning a Tenable scan record."""
+
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class TenableScanListResponse(BaseModel):
+    """Paginated list of Tenable scans."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[TenableScanResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=50000)
+    offset: int = Field(ge=0)
+    has_more: bool
+
+
+class TenableImportResponse(BaseModel):
+    """Summary of Tenable provider import operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    records_received: int
+    created: int
+    updated: int
+    skipped_without_source_identity: int
+    informational_records_retained: int
+    errors: int
+    source_offset: int
+    source_limit: int

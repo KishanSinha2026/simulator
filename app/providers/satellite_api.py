@@ -204,8 +204,8 @@ class SatelliteAPIProvider:
 
     @staticmethod
     def _validate_pagination(*, limit: int, page: int) -> None:
-        if not 1 <= limit <= 1000:
-            raise ValueError("limit must be between 1 and 1000")
+        if not 1 <= limit <= 50000:
+            raise ValueError("limit must be between 1 and 50000")
 
         if page < 1:
             raise ValueError("page must be at least 1")

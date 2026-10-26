@@ -72,6 +72,42 @@ class CMDBServer(Base):
         String(255), nullable=True
     )
 
+    is_virtual: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+
+    internet_facing: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+
+    virtual_system_type: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    asset_type: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    product_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    server_type: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    operating_system: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    risk_classification: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+
+    target_date: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
     status: Mapped[str | None] = mapped_column(
         String(50), nullable=True, index=True
     )
@@ -117,11 +153,67 @@ class CMDBMiddleware(Base):
         String(255), nullable=True, index=True
     )
 
+    hostname: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    ip_address: Mapped[str | None] = mapped_column(
+        String(45), nullable=True, index=True
+    )
+
+    location: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    application_name: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    asset_owner: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    it_application_owner: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
     middleware_type: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
 
     version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    recommended_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    environment: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    production_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+
+    core_count: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+
+    os_type: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    latest_patch_release_date: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    end_of_support_date: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    target_date: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
 
@@ -166,11 +258,47 @@ class CMDBDatabase(Base):
         String(255), nullable=True, index=True
     )
 
+    hostname: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    ip_address: Mapped[str | None] = mapped_column(
+        String(45), nullable=True, index=True
+    )
+
+    location: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
+    asset_owner: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
     database_type: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
 
     version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    environment: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
+    production_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+
+    risk_classification: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )
+
+    last_patch_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    target_date: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
 

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "scan-001",
+    "source_scan_id": "scan-001",
+    "name": "Corporate Infrastructure Weekly Scan",
+    "status": "completed",
+    "started_at": "2026-10-20T08:00:00Z",
+    "completed_at": "2026-10-20T09:30:00Z",
+    "source_payload": {
+      "resultType": "user",
+      "scanduration": "5400",
+      "repository": "Local Network"
+    }
+  },
+  {
+    "id": "scan-002",
+    "source_scan_id": "scan-002",
+    "name": "PCI-DSS DMZ Quarterly Scan",
+    "status": "completed",
+    "started_at": "2026-10-21T10:00:00Z",
+    "completed_at": "2026-10-21T11:45:00Z",
+    "source_payload": {
+      "resultType": "user",
+      "scanduration": "6300",
+      "repository": "DMZ"
+    }
+  }
+]

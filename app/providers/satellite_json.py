@@ -100,8 +100,8 @@ class SatelliteJsonProvider:
         if not host_ids:
             raise ValueError("At least one host is required")
 
-        if len(set(host_ids)) != len(host_ids):
-            raise ValueError("Duplicate host IDs are not allowed")
+        # Idempotently deduplicate host IDs
+        host_ids = list(dict.fromkeys(host_ids))
 
         template = self.job_templates.get_by_id(template_id)
 
@@ -218,3 +218,27 @@ class SatelliteJsonProvider:
         raise ValueError(
             f"Satellite job run {job_run_id!r} was not found"
         )
+
+    def create_host(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Create a simulated host in the JSON fixture."""
+        if not payload:
+            raise ValueError("Payload cannot be empty")
+        record = dict(payload)
+        source_id = record.get("source_host_id")
+        if not source_id or not str(source_id).strip():
+            raise ValueError("source_host_id is required")
+        record["source_host_id"] = str(source_id).strip()
+        record.setdefault("id", record["source_host_id"])
+        return self.hosts.create_record(record)
+
+    def create_job_template(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Create a simulated job template in the JSON fixture."""
+        if not payload:
+            raise ValueError("Payload cannot be empty")
+        record = dict(payload)
+        source_id = record.get("source_template_id")
+        if not source_id or not str(source_id).strip():
+            raise ValueError("source_template_id is required")
+        record["source_template_id"] = str(source_id).strip()
+        record.setdefault("id", record["source_template_id"])
+        return self.job_templates.create_record(record)

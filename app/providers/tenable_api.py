@@ -361,6 +361,17 @@ class TenableAPIProvider:
 
         return scans
 
+    def list_scans(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List Tenable scans retrieved from the API provider."""
+        scans = self._fetch_all_scans()
+        return scans[offset : offset + limit]
+
+
     def _fetch_analysis(
         self,
         scan: dict[str, Any],
@@ -412,8 +423,8 @@ class TenableAPIProvider:
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Fetch and normalize detailed findings via the BRD routes."""
-        if not 1 <= limit <= 1000:
-            raise ValueError("limit must be between 1 and 1000")
+        if not 1 <= limit <= 50000:
+            raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
             raise ValueError("offset cannot be negative")

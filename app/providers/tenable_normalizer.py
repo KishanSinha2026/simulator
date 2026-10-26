@@ -398,7 +398,7 @@ def normalize_tenable_record(
         raise TypeError("A Tenable source record must be a JSON object")
 
     snapshot: dict[str, Any] = {
-        field: _lookup(field, field, record)
+        field: _lookup(record, field)
         for field in TENABLE_BRD_54_FIELDS
     }
 

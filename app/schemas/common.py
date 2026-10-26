@@ -30,7 +30,7 @@ class PaginationParams(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    limit: int = Field(default=100, ge=1, le=500)
+    limit: int = Field(default=100, ge=1, le=50000)
     offset: int = Field(default=0, ge=0)
 
 
@@ -41,6 +41,6 @@ class PaginatedResponse(BaseModel):
 
     items: list[Any]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool

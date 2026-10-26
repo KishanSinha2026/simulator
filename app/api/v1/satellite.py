@@ -1,4 +1,13 @@
-"""FastAPI endpoints for Red Hat Satellite simulation."""
+"""FastAPI endpoints for Red Hat Satellite hosts, job templates, and execution.
+
+Implements unified BRD Section 4.5 routes:
+- GET /hosts (S1: Inventory hosts registered in Satellite)
+- GET /job-templates (S2: Approved Ansible/Satellite execution job templates)
+- POST /jobs (S3: Launch job invocation with template_id, host_ids, inputs)
+- GET /jobs/{job_run_id} (S4/S5: Read job status and host execution results)
+- POST /jobs/{job_run_id}/cancel (S7: Policy-approved job cancellation)
+- POST /import (synchronize/import hosts and job templates into PostgreSQL)
+"""
 
 from typing import Any
 
@@ -7,12 +16,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.common import PaginatedResponse
 from app.schemas.satellite import (
-    SatelliteHostResponse,
+    SatelliteHostListResponse,
+    SatelliteImportResponse,
+    SatelliteJobCancelRequest,
     SatelliteJobLaunchRequest,
     SatelliteJobRunResponse,
-    SatelliteJobTemplateResponse,
+    SatelliteJobTemplateListResponse,
 )
 from app.services.satellite_service import SatelliteService
 
@@ -32,14 +42,15 @@ def get_satellite_service(
 
 @router.get(
     "/hosts",
-    response_model=PaginatedResponse,
+    response_model=SatelliteHostListResponse,
+    summary="List Satellite hosts (BRD S1)",
 )
 def list_hosts(
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=50000, description="Max hosts to return"),
+    offset: int = Query(default=0, ge=0, description="Pagination offset"),
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:
-    """List Satellite hosts stored in PostgreSQL."""
+    """Retrieve hosts managed by Satellite. Serves live API data if configured, or local/JSON data."""
     return service.list_hosts(
         limit=limit,
         offset=offset,
@@ -47,41 +58,16 @@ def list_hosts(
 
 
 @router.get(
-    "/hosts/{host_id}",
-    response_model=SatelliteHostResponse,
-)
-def get_host(
-    host_id: int,
-    service: SatelliteService = Depends(get_satellite_service),
-):
-    """Retrieve a host using its internal database ID."""
-    if host_id < 1:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="host_id must be greater than zero",
-        )
-
-    host = service.get_host(host_id)
-
-    if host is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Satellite host not found",
-        )
-
-    return host
-
-
-@router.get(
     "/job-templates",
-    response_model=PaginatedResponse,
+    response_model=SatelliteJobTemplateListResponse,
+    summary="List approved job templates (BRD S2)",
 )
 def list_job_templates(
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=50000, description="Max templates to return"),
+    offset: int = Query(default=0, ge=0, description="Pagination offset"),
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:
-    """List job templates stored in PostgreSQL."""
+    """Retrieve approved Satellite/Ansible job templates."""
     return service.list_job_templates(
         limit=limit,
         offset=offset,
@@ -91,43 +77,45 @@ def list_job_templates(
 @router.post(
     "/jobs",
     status_code=status.HTTP_202_ACCEPTED,
+    summary="Launch job execution (BRD S3)",
 )
-def launch_simulated_job(
+def launch_job(
     payload: SatelliteJobLaunchRequest,
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:
-    """Record a simulated job request without launching a remote job."""
+    """Launch execution of an approved job template on selected target hosts.
+
+    Dispatches to Red Hat Satellite API if configured, otherwise records simulated run.
+    """
     try:
         return service.launch_simulated_job(payload)
-
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
-
     except IntegrityError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="The simulated job conflicts with a database constraint",
+            detail="The job conflicts with a database constraint",
         ) from None
-
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unable to record simulated Satellite job",
+            detail="Unable to launch Satellite job",
         ) from None
 
 
 @router.get(
     "/jobs/{job_run_id}",
     response_model=SatelliteJobRunResponse,
+    summary="Get job run status and results (BRD S4/S5)",
 )
 def get_job_run(
     job_run_id: int,
     service: SatelliteService = Depends(get_satellite_service),
 ):
-    """Retrieve a job run using its internal database ID."""
+    """Poll job run status, completion timestamps, and host execution outputs."""
     if job_run_id < 1:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -135,11 +123,41 @@ def get_job_run(
         )
 
     job = service.get_job_run(job_run_id)
-
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Satellite job run not found",
         )
-
     return job
+
+
+@router.post(
+    "/jobs/{job_run_id}/cancel",
+    response_model=SatelliteJobRunResponse,
+    summary="Cancel active job run (BRD S7)",
+)
+def cancel_job_run(
+    job_run_id: int,
+    payload: SatelliteJobCancelRequest,
+    service: SatelliteService = Depends(get_satellite_service),
+):
+    """Cancel a pending or active job run per bank operational policy."""
+    try:
+        return service.cancel_job_run(job_run_id, payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/import",
+    response_model=SatelliteImportResponse,
+    summary="Import and synchronize hosts and templates into PostgreSQL",
+)
+def import_satellite_data(
+    service: SatelliteService = Depends(get_satellite_service),
+) -> dict[str, Any]:
+    """Synchronize hosts and job templates into PostgreSQL from active source (API or JSON fixtures)."""
+    return service.import_provider_data()

@@ -32,7 +32,7 @@ class Settings(BaseSettings):
 
     # PostgreSQL
     database_url: SecretStr = SecretStr(
-        "postgresql+psycopg://appuser:replace_me@localhost:5432/vpm_simulator"
+        "postgresql+psycopg://appuser:ChangeMe13_Strong@localhost:5433/appdb"
     )
     db_pool_size: int = Field(default=5, ge=1)
     db_max_overflow: int = Field(default=10, ge=0)
@@ -84,7 +84,7 @@ class Settings(BaseSettings):
         ge=1,
         le=1000,
     )
-    tenable_max_scan_results: int = Field(default=10000, ge=1)
+    tenable_max_scan_results: int = Field(default=50000, ge=1)
 
     # ---------------------------------------------------------
     # BMC Helix CMDB - read/correlation configuration
