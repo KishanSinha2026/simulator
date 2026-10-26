@@ -9,9 +9,13 @@
     "status": "completed",
     "started_at": "2026-10-25T10:00:00Z",
     "finished_at": "2026-10-25T10:05:00Z",
-    "result_summary": "Simulated package update completed successfully.",
+    "result_summary": "Simulated package update completed successfully. No remote command was executed.",
+    "inputs": {
+      "package_name": "openssl",
+      "check_mode": true
+    },
     "is_simulated": true,
-    "change_id": "change-001",
+    "change_id": "CHG-SIM-001",
     "error_message": null
   },
   {
@@ -24,7 +28,10 @@
     "status": "completed",
     "started_at": "2026-10-25T11:00:00Z",
     "finished_at": "2026-10-25T11:02:00Z",
-    "result_summary": "Simulated patch verification completed.",
+    "result_summary": "Simulated patch verification completed successfully. No remote command was executed.",
+    "inputs": {
+      "package_name": "openssl"
+    },
     "is_simulated": true,
     "change_id": null,
     "error_message": null

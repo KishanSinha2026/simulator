@@ -1,4 +1,4 @@
-"""Database repository for BMC Helix ITSM changes and worklogs."""
+"""Database repositories for BMC Helix ITSM resources."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,10 +17,13 @@ class ITSMChangeRepository(BaseRepository[ITSMChange]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, ITSMChange)
 
-    def get_by_source_id(self, source_id: str) -> ITSMChange | None:
+    def get_by_source_id(
+        self,
+        source_change_id: str,
+    ) -> ITSMChange | None:
         """Find a change using its external ITSM identifier."""
         statement = select(ITSMChange).where(
-            ITSMChange.source_id == source_id
+            ITSMChange.source_change_id == source_change_id
         )
         return self.db.scalars(statement).first()
 
@@ -32,6 +35,12 @@ class ITSMChangeRepository(BaseRepository[ITSMChange]):
         offset: int = 0,
     ) -> list[ITSMChange]:
         """Return changes matching a status."""
+        if limit < 1:
+            raise ValueError("limit must be greater than zero")
+
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
         statement = (
             select(ITSMChange)
             .where(ITSMChange.status == status)
@@ -43,19 +52,35 @@ class ITSMChangeRepository(BaseRepository[ITSMChange]):
 
 
 class ITSMWorklogRepository(BaseRepository[ITSMWorklog]):
-    """Database operations for ITSM worklog entries."""
+    """Database operations for ITSM worklogs."""
 
     def __init__(self, db: Session) -> None:
         super().__init__(db, ITSMWorklog)
 
+    def get_by_source_id(
+        self,
+        source_worklog_id: str,
+    ) -> ITSMWorklog | None:
+        """Find a worklog using its external source identifier."""
+        statement = select(ITSMWorklog).where(
+            ITSMWorklog.source_worklog_id == source_worklog_id
+        )
+        return self.db.scalars(statement).first()
+
     def list_by_change_id(
         self,
-        change_id: str,
+        change_id: int,
         *,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ITSMWorklog]:
-        """Return worklogs associated with an external change ID."""
+        """Return worklogs associated with a database change ID."""
+        if limit < 1:
+            raise ValueError("limit must be greater than zero")
+
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
         statement = (
             select(ITSMWorklog)
             .where(ITSMWorklog.change_id == change_id)
@@ -76,12 +101,18 @@ class ITSMChangeHistoryRepository(
 
     def list_by_change_id(
         self,
-        change_id: str,
+        change_id: int,
         *,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ITSMChangeHistory]:
-        """Return history records for an external change ID."""
+        """Return history records associated with a database change ID."""
+        if limit < 1:
+            raise ValueError("limit must be greater than zero")
+
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
         statement = (
             select(ITSMChangeHistory)
             .where(ITSMChangeHistory.change_id == change_id)

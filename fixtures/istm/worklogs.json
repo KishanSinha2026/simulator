@@ -1,0 +1,15 @@
+[
+  {
+    "id": "worklog-001",
+    "source_worklog_id": "WL-SIM-0001",
+    "source_change_id": "CHG-SIM-001",
+    "description": "Simulated worklog: security patch change reviewed for testing.",
+    "submitter": "simulator",
+    "worklog_type": "Work Info",
+    "created_at": "2026-10-26T08:30:00Z",
+    "source_payload": {
+      "status": "Recorded",
+      "is_simulated": true
+    }
+  }
+]

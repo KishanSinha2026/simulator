@@ -7,7 +7,7 @@
     "started_at": "2026-10-25T10:00:00Z",
     "finished_at": "2026-10-25T10:05:00Z",
     "exit_code": 0,
-    "stdout": "SIMULATION: package update would be performed.",
+    "stdout": "SIMULATION: package update check completed. No remote command was executed.",
     "stderr": "",
     "is_simulated": true
   },
@@ -19,7 +19,7 @@
     "started_at": "2026-10-25T11:00:00Z",
     "finished_at": "2026-10-25T11:02:00Z",
     "exit_code": 0,
-    "stdout": "SIMULATION: patch verification completed.",
+    "stdout": "SIMULATION: patch verification completed. No remote command was executed.",
     "stderr": "",
     "is_simulated": true
   }

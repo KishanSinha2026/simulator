@@ -1,96 +1,157 @@
-"""Pydantic schemas for Red Hat Satellite hosts and job execution."""
+"""Pydantic schemas for Red Hat Satellite resources and job simulation."""
 
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class SatelliteHostBase(BaseModel):
-    """Common fields for a Satellite host."""
+    """Fields for a host registered in Satellite."""
 
-    source_id: str | None = Field(default=None, max_length=255)
-    name: str = Field(min_length=1, max_length=255)
-    hostname: str | None = Field(default=None, max_length=255)
-    ip_address: str | None = Field(default=None, max_length=45)
-    operating_system: str | None = Field(default=None, max_length=255)
-    os_version: str | None = Field(default=None, max_length=255)
-    organization: str | None = Field(default=None, max_length=255)
-    location: str | None = Field(default=None, max_length=255)
-    environment: str | None = Field(default=None, max_length=100)
-    status: str | None = Field(default=None, max_length=100)
-    source_payload: dict[str, Any] = Field(default_factory=dict)
+    model_config = ConfigDict(
+        extra="forbid",
+        from_attributes=True,
+    )
 
-    model_config = ConfigDict(extra="forbid")
+    source_host_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+    name: str = Field(
+        min_length=1,
+        max_length=255,
+    )
+    ip_address: str | None = Field(
+        default=None,
+        max_length=45,
+    )
+    operating_system: str | None = Field(
+        default=None,
+        max_length=255,
+    )
+    organization_id: int | None = None
+    location_id: int | None = None
+    source_payload: dict[str, Any] | None = None
 
 
 class SatelliteHostResponse(SatelliteHostBase):
-    """Schema returned for a Satellite host."""
+    """Schema returned for a persisted Satellite host."""
 
     id: int
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
-
 
 class SatelliteJobTemplateResponse(BaseModel):
-    """Schema returned for a job template."""
+    """Schema returned for a Satellite job template."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        from_attributes=True,
+    )
 
     id: int
-    source_id: str | None = None
+    source_template_id: str
     name: str
     description: str | None = None
-    job_category: str | None = None
-    effective_user: str | None = None
-    source_payload: dict[str, Any] = Field(default_factory=dict)
-
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
+    template_type: str | None = None
+    input_schema: dict[str, Any] | None = None
+    source_payload: dict[str, Any] | None = None
+    created_at: datetime
 
 
 class SatelliteJobLaunchRequest(BaseModel):
-    """Request to launch a simulated or authorized Satellite job."""
-
-    template_id: str = Field(min_length=1, max_length=255)
-    host_ids: list[str] = Field(min_length=1, max_length=100)
-    inputs: dict[str, Any] = Field(default_factory=dict)
-    approved: bool = False
+    """Request to record a simulated Satellite job."""
 
     model_config = ConfigDict(extra="forbid")
+
+    # External Satellite template ID, not the internal database ID.
+    template_id: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    # External Satellite host IDs, resolved by the service.
+    host_ids: list[str] = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+    )
+
+    @classmethod
+    def validate_host_ids(cls, values: list[str]) -> list[str]:
+        """Validate host identifiers."""
+        normalized = [value.strip() for value in values]
+
+        if any(not value for value in normalized):
+            raise ValueError("Host IDs cannot be blank")
+
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Duplicate host IDs are not allowed")
+
+        return normalized
+    
+    @field_validator("host_ids")
+    @classmethod
+    def validate_host_ids(cls, values: list[str]) -> list[str]:
+        """Validate host identifiers."""
+        normalized = [value.strip() for value in values]
+
+        if any(not value for value in normalized):
+            raise ValueError("Host IDs cannot be blank")
+
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Duplicate host IDs are not allowed")
+
+        return normalized
 
 
 class SatelliteJobRunResponse(BaseModel):
-    """Schema returned for a Satellite job run."""
+    """Schema returned for a persisted Satellite job run."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        from_attributes=True,
+    )
 
     id: int
-    source_id: str | None = None
-    template_id: str
+    source_invocation_id: str | None = None
+    template_id: int
     status: str
+    inputs: dict[str, Any]
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    source_payload: dict[str, Any] = Field(default_factory=dict)
-
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
+    source_payload: dict[str, Any] | None = None
+    created_at: datetime
 
 
 class SatelliteJobHostResultResponse(BaseModel):
-    """Per-host result for a Satellite job run."""
+    """Schema returned for one host's job result."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        from_attributes=True,
+    )
 
     id: int
-    job_run_id: str
-    host_id: str
+    job_run_id: int
+    host_id: int
     status: str
-    result: str | None = None
+    result_text: str | None = None
+    source_payload: dict[str, Any] | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    source_payload: dict[str, Any] = Field(default_factory=dict)
-
-    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class SatelliteJobCancelRequest(BaseModel):
-    """Request to cancel a job that is still eligible for cancellation."""
-
-    reason: str | None = Field(default=None, max_length=1000)
+    """Request metadata for cancelling an eligible job."""
 
     model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = Field(
+        default=None,
+        max_length=1000,
+    )

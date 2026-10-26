@@ -10,33 +10,40 @@ from fastapi.responses import JSONResponse
 from app.api.v1 import cmdb, health, itsm, satellite, tenable
 from app.core.config import get_settings
 
+
 settings = get_settings()
 
 logging.basicConfig(
-    level=settings.LOG_LEVEL.upper(),
+    level=settings.log_level.upper(),
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
+
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Application startup and shutdown lifecycle."""
-    logger.info("Starting %s", settings.APP_NAME)
+    logger.info("Starting %s", settings.app_name)
+
     yield
-    logger.info("Shutting down %s", settings.APP_NAME)
+
+    logger.info("Shutting down %s", settings.app_name)
 
 
 app = FastAPI(
-    title=settings.APP_NAME,
-    description="VPM360 integration API for vulnerability, CMDB, ITSM, and Satellite workflows.",
+    title=settings.app_name,
+    description=(
+        "VPM360 integration API for vulnerability, CMDB, "
+        "ITSM, and Satellite workflows."
+    ),
     version="1.0.0",
-    debug=settings.DEBUG,
+    debug=settings.debug,
     lifespan=lifespan,
 )
 
 
-# Configure allowed frontend origins through settings before production deployment.
+# Configure allowed frontend origins before production deployment.
 # Avoid wildcard origins when credentials are enabled.
 app.add_middleware(
     CORSMiddleware,
@@ -54,23 +61,33 @@ for router in (
     itsm.router,
     satellite.router,
 ):
-    app.include_router(router, prefix=settings.API_V1_PREFIX)
+    app.include_router(
+        router,
+        prefix=settings.api_v1_prefix,
+    )
 
 
 @app.get("/", tags=["System"])
 def root() -> dict[str, str]:
     """Return basic API information."""
     return {
-        "name": settings.APP_NAME,
+        "name": settings.app_name,
         "status": "running",
-        "docs": "/docs",
+        "docs": f"{settings.api_v1_prefix}/../docs",
     }
 
 
 @app.exception_handler(Exception)
-async def unhandled_exception_handler(_, exc: Exception) -> JSONResponse:
+async def unhandled_exception_handler(
+    _,
+    exc: Exception,
+) -> JSONResponse:
     """Log unexpected errors without exposing internal details."""
-    logger.exception("Unhandled application exception: %s", type(exc).__name__)
+    logger.exception(
+        "Unhandled application exception: %s",
+        type(exc).__name__,
+    )
+
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},

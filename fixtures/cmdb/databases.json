@@ -1,10 +1,16 @@
 [
   {
     "id": "ci-database-001",
+    "source_instance_id": "CI-DATABASE-001",
     "ci_name": "database01",
-    "server_instance_id": "ci-server-001",
+    "server_instance_id": "CI-SERVER-001",
     "database_type": "PostgreSQL",
     "version": "16",
-    "status": "Active"
+    "status": "Active",
+    "source_payload": {
+      "environment": "UAT",
+      "is_simulated": true,
+      "notes": "Synthetic database CI for local simulator testing."
+    }
   }
 ]

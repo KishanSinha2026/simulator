@@ -9,7 +9,7 @@ from app.schemas.itsm import ITSMChangeCreate, ITSMChangeUpdate
 
 
 class ITSMService:
-    """Coordinate ITSM change operations and database persistence."""
+    """Coordinate ITSM change operations and PostgreSQL persistence."""
 
     def __init__(self, db: Session) -> None:
         self.db = db
@@ -23,6 +23,12 @@ class ITSMService:
         status: str | None = None,
     ) -> dict[str, Any]:
         """List persisted changes with optional status filtering."""
+        if limit < 1:
+            raise ValueError("limit must be greater than zero")
+
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
         query = self.db.query(self.repository.model)
 
         if status:
@@ -31,8 +37,10 @@ class ITSMService:
             )
 
         total = query.count()
+
         items = (
-            query.order_by(self.repository.model.id)
+            query
+            .order_by(self.repository.model.id)
             .offset(offset)
             .limit(limit)
             .all()
@@ -46,22 +54,33 @@ class ITSMService:
             "has_more": offset + len(items) < total,
         }
 
-    def get_change(self, change_id: int) -> Any:
-        """Retrieve a change by its database ID."""
+    def get_change(self, change_id: int) -> Any | None:
+        """Retrieve a change request by its database ID."""
         return self.repository.get_by_id(change_id)
 
-    def create_change(self, payload: ITSMChangeCreate) -> Any:
-        """Create a simulated ITSM change in PostgreSQL."""
-        data = payload.model_dump()
-
+    @staticmethod
+    def _validate_schedule(
+        scheduled_start_at: Any | None,
+        scheduled_end_at: Any | None,
+    ) -> None:
+        """Validate the scheduled window of a change request."""
         if (
-            data.get("scheduled_start")
-            and data.get("scheduled_end")
-            and data["scheduled_end"] <= data["scheduled_start"]
+            scheduled_start_at is not None
+            and scheduled_end_at is not None
+            and scheduled_end_at <= scheduled_start_at
         ):
             raise ValueError(
-                "scheduled_end must be later than scheduled_start"
+                "scheduled_end_at must be later than scheduled_start_at"
             )
+
+    def create_change(self, payload: ITSMChangeCreate) -> Any:
+        """Create a simulated change request in PostgreSQL."""
+        data = payload.model_dump()
+
+        self._validate_schedule(
+            data.get("scheduled_start_at"),
+            data.get("scheduled_end_at"),
+        )
 
         try:
             record = self.repository.create(data)
@@ -77,19 +96,27 @@ class ITSMService:
         change_id: int,
         payload: ITSMChangeUpdate,
     ) -> Any | None:
-        """Update selected fields of a persisted change."""
+        """Update selected fields of a persisted change request."""
         record = self.repository.get_by_id(change_id)
+
         if record is None:
             return None
 
         changes = payload.model_dump(exclude_unset=True)
-        start = changes.get("scheduled_start", record.scheduled_start)
-        end = changes.get("scheduled_end", record.scheduled_end)
 
-        if start and end and end <= start:
-            raise ValueError(
-                "scheduled_end must be later than scheduled_start"
-            )
+        scheduled_start_at = changes.get(
+            "scheduled_start_at",
+            record.scheduled_start_at,
+        )
+        scheduled_end_at = changes.get(
+            "scheduled_end_at",
+            record.scheduled_end_at,
+        )
+
+        self._validate_schedule(
+            scheduled_start_at,
+            scheduled_end_at,
+        )
 
         try:
             record = self.repository.update(record, changes)

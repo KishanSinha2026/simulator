@@ -1,22 +1,58 @@
 [
   {
     "id": "job-template-001",
+    "source_template_id": "job-template-001",
     "name": "Simulated Package Update",
-    "description": "Simulates an approved package-update workflow for local testing.",
-    "template_kind": "job",
-    "provider": "json",
-    "enabled": true,
-    "supports_check_mode": true,
-    "command": null
+    "description": "Simulates a package-update workflow for local testing. No remote command is executed.",
+    "template_type": "package_update",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "package_name": {
+          "type": "string",
+          "description": "Package to check or update."
+        },
+        "check_mode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Simulate the operation without applying changes."
+        }
+      },
+      "required": [
+        "package_name"
+      ],
+      "additionalProperties": false
+    },
+    "source_payload": {
+      "provider": "json",
+      "enabled": true,
+      "supports_check_mode": true,
+      "command": null,
+      "is_simulated": true
+    }
   },
   {
     "id": "job-template-002",
+    "source_template_id": "job-template-002",
     "name": "Simulated Patch Verification",
-    "description": "Simulates checking the patch status of a managed host.",
-    "template_kind": "job",
-    "provider": "json",
-    "enabled": true,
-    "supports_check_mode": true,
-    "command": null
+    "description": "Simulates checking patch status on a managed host without executing remote commands.",
+    "template_type": "patch_verification",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "package_name": {
+          "type": "string",
+          "description": "Optional package to verify."
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_payload": {
+      "provider": "json",
+      "enabled": true,
+      "supports_check_mode": true,
+      "command": null,
+      "is_simulated": true
+    }
   }
 ]

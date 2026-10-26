@@ -1,6 +1,7 @@
 """FastAPI endpoints for BMC Helix CMDB server configuration items."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -12,7 +13,11 @@ from app.schemas.cmdb import (
 from app.schemas.common import PaginatedResponse
 from app.services.cmdb_service import CMDBService
 
-router = APIRouter(prefix="/cmdb", tags=["BMC Helix CMDB"])
+
+router = APIRouter(
+    prefix="/cmdb",
+    tags=["BMC Helix CMDB"],
+)
 
 
 def get_cmdb_service(
@@ -22,15 +27,18 @@ def get_cmdb_service(
     return CMDBService(db)
 
 
-@router.get("/servers", response_model=PaginatedResponse)
+@router.get(
+    "/servers",
+    response_model=PaginatedResponse,
+)
 def list_servers(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     status_filter: str | None = Query(default=None, alias="status"),
-    ip_address: str | None = Query(default=None),
+    ip_address: str | None = Query(default=None, min_length=1, max_length=45),
     service: CMDBService = Depends(get_cmdb_service),
 ):
-    """List server CIs stored in PostgreSQL."""
+    """List persisted server CIs with optional filters."""
     return service.list_servers(
         limit=limit,
         offset=offset,
@@ -39,21 +47,39 @@ def list_servers(
     )
 
 
-@router.get("/servers/by-ip/{ip_address}", response_model=list[CMDBServerResponse])
+@router.get(
+    "/servers/by-ip/{ip_address}",
+    response_model=list[CMDBServerResponse],
+)
 def find_servers_by_ip(
     ip_address: str,
     service: CMDBService = Depends(get_cmdb_service),
 ):
     """Return all server CIs matching an IP address."""
-    return service.find_servers_by_ip(ip_address)
+    try:
+        return service.find_servers_by_ip(ip_address)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
 
-@router.get("/servers/{server_id}", response_model=CMDBServerResponse)
+@router.get(
+    "/servers/{server_id}",
+    response_model=CMDBServerResponse,
+)
 def get_server(
     server_id: int,
     service: CMDBService = Depends(get_cmdb_service),
 ):
-    """Retrieve a server CI by database ID."""
+    """Retrieve a server CI by its internal database ID."""
+    if server_id < 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="server_id must be greater than zero",
+        )
+
     server = service.get_server(server_id)
 
     if server is None:
@@ -74,9 +100,25 @@ def create_server(
     payload: CMDBServerCreate,
     service: CMDBService = Depends(get_cmdb_service),
 ):
-    """Create a simulated CMDB server record."""
+    """Create a simulated CMDB server record in PostgreSQL."""
     try:
         return service.create_server(payload)
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "A CMDB record with this source instance ID "
+                "already exists or violates a database constraint"
+            ),
+        ) from None
+
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -84,15 +126,37 @@ def create_server(
         ) from None
 
 
-@router.patch("/servers/{server_id}", response_model=CMDBServerResponse)
+@router.patch(
+    "/servers/{server_id}",
+    response_model=CMDBServerResponse,
+)
 def update_server(
     server_id: int,
     payload: CMDBServerUpdate,
     service: CMDBService = Depends(get_cmdb_service),
 ):
-    """Update selected fields on a stored server CI."""
+    """Update selected fields on an existing server CI."""
+    if server_id < 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="server_id must be greater than zero",
+        )
+
     try:
         server = service.update_server(server_id, payload)
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The update violates a database constraint",
+        ) from None
+
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

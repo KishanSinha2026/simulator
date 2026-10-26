@@ -1,4 +1,4 @@
-"""Database repository for BMC Helix CMDB configuration items."""
+"""Database repositories for BMC Helix CMDB configuration items."""
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,18 +17,20 @@ class CMDBServerRepository(BaseRepository[CMDBServer]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, CMDBServer)
 
-    def get_by_source_id(self, source_id: str) -> CMDBServer | None:
-        """Find a server using its external CMDB identifier."""
+    def get_by_source_id(
+        self,
+        source_instance_id: str,
+    ) -> CMDBServer | None:
+        """Find a server using its external CMDB instance ID."""
         statement = select(CMDBServer).where(
-            CMDBServer.source_id == source_id
+            CMDBServer.source_instance_id == source_instance_id
         )
         return self.db.scalars(statement).first()
 
     def get_by_ip(self, ip_address: str) -> list[CMDBServer]:
         """Return all servers matching an IP address.
 
-        Returning a list allows the service layer to detect ambiguous
-        matches instead of silently selecting an arbitrary server.
+        Return all matches so callers can detect ambiguous CIs.
         """
         statement = (
             select(CMDBServer)
@@ -45,6 +47,12 @@ class CMDBServerRepository(BaseRepository[CMDBServer]):
         offset: int = 0,
     ) -> list[CMDBServer]:
         """Return servers matching a CI status."""
+        if limit < 1:
+            raise ValueError("limit must be greater than zero")
+
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
         statement = (
             select(CMDBServer)
             .where(CMDBServer.status == status)
@@ -63,11 +71,11 @@ class CMDBMiddlewareRepository(BaseRepository[CMDBMiddleware]):
 
     def get_by_source_id(
         self,
-        source_id: str,
+        source_instance_id: str,
     ) -> CMDBMiddleware | None:
-        """Find middleware by its external CMDB identifier."""
+        """Find middleware by its external CMDB instance ID."""
         statement = select(CMDBMiddleware).where(
-            CMDBMiddleware.source_id == source_id
+            CMDBMiddleware.source_instance_id == source_instance_id
         )
         return self.db.scalars(statement).first()
 
@@ -80,10 +88,10 @@ class CMDBDatabaseRepository(BaseRepository[CMDBDatabase]):
 
     def get_by_source_id(
         self,
-        source_id: str,
+        source_instance_id: str,
     ) -> CMDBDatabase | None:
-        """Find a database CI by its external CMDB identifier."""
+        """Find a database CI by its external CMDB instance ID."""
         statement = select(CMDBDatabase).where(
-            CMDBDatabase.source_id == source_id
+            CMDBDatabase.source_instance_id == source_instance_id
         )
         return self.db.scalars(statement).first()

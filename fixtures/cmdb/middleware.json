@@ -1,10 +1,16 @@
 [
   {
     "id": "ci-middleware-001",
+    "source_instance_id": "CI-MIDDLEWARE-001",
     "ci_name": "middleware01",
-    "server_instance_id": "ci-server-001",
-    "product_name": "Example Middleware",
+    "server_instance_id": "CI-SERVER-001",
+    "middleware_type": "Example Middleware",
     "version": "1.0",
-    "status": "Active"
+    "status": "Active",
+    "source_payload": {
+      "product_name": "Example Middleware",
+      "environment": "UAT",
+      "is_simulated": true
+    }
   }
 ]

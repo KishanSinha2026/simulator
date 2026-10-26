@@ -1,9 +1,0 @@
-[
-  {
-    "id": "WL-SIM-0001",
-    "change_id": "CHG-SIM-0001",
-    "description": "Simulated worklog entry.",
-    "created_by": "simulator",
-    "status": "Recorded"
-  }
-]

@@ -1,3 +1,4 @@
+"""JSON fixture provider for Red Hat Satellite simulation."""
 
 from typing import Any
 from uuid import uuid4
@@ -6,15 +7,23 @@ from app.providers.json_provider import JsonProvider
 
 
 class SatelliteJsonProvider:
-    """Red Hat Satellite simulator backed by local JSON fixtures."""
+    """Read and manage simulated Satellite records in JSON files."""
 
     def __init__(self) -> None:
         self.hosts = JsonProvider("satellite/hosts.json")
-        self.job_templates = JsonProvider("satellite/job_templates.json")
+        self.job_templates = JsonProvider(
+            "satellite/job_templates.json"
+        )
         self.job_runs = JsonProvider("satellite/job_runs.json")
-        self.host_results = JsonProvider("satellite/host_results.json")
+        self.host_results = JsonProvider(
+            "satellite/job_host_results.json"
+        )
 
-    def get_host(self, host_id: str) -> dict[str, Any] | None:
+    def get_host(
+        self,
+        host_id: str,
+    ) -> dict[str, Any] | None:
+        """Retrieve a host by its fixture ID."""
         return self.hosts.get_by_id(host_id)
 
     def list_hosts(
@@ -24,6 +33,7 @@ class SatelliteJsonProvider:
         offset: int = 0,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        """List hosts with optional filters and pagination."""
         return self.hosts.list_records(
             limit=limit,
             offset=offset,
@@ -37,13 +47,18 @@ class SatelliteJsonProvider:
         offset: int = 0,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        """List available simulated job templates."""
         return self.job_templates.list_records(
             limit=limit,
             offset=offset,
             filters=filters,
         )
 
-    def get_job_run(self, job_run_id: str) -> dict[str, Any] | None:
+    def get_job_run(
+        self,
+        job_run_id: str,
+    ) -> dict[str, Any] | None:
+        """Retrieve a job run by its fixture ID."""
         return self.job_runs.get_by_id(job_run_id)
 
     def list_job_runs(
@@ -53,7 +68,22 @@ class SatelliteJsonProvider:
         offset: int = 0,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        """List job runs with optional filters and pagination."""
         return self.job_runs.list_records(
+            limit=limit,
+            offset=offset,
+            filters=filters,
+        )
+
+    def list_host_results(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """List simulated per-host results."""
+        return self.host_results.list_records(
             limit=limit,
             offset=offset,
             filters=filters,
@@ -66,60 +96,125 @@ class SatelliteJsonProvider:
         host_ids: list[str],
         inputs: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Record a simulated job without executing remote commands."""
         if not host_ids:
             raise ValueError("At least one host is required")
 
+        if len(set(host_ids)) != len(host_ids):
+            raise ValueError("Duplicate host IDs are not allowed")
+
         template = self.job_templates.get_by_id(template_id)
+
         if template is None:
             raise ValueError(
                 f"Satellite job template {template_id!r} was not found"
             )
 
-        hosts = []
+        hosts: list[dict[str, Any]] = []
+
         for host_id in host_ids:
             host = self.hosts.get_by_id(host_id)
+
             if host is None:
-                raise ValueError(f"Satellite host {host_id!r} was not found")
+                raise ValueError(
+                    f"Satellite host {host_id!r} was not found"
+                )
+
             hosts.append(host)
 
         job_run_id = f"SIM-JOB-{uuid4().hex[:12]}"
+
         job_run = {
             "id": job_run_id,
-            "template_id": template_id,
-            "host_ids": host_ids,
-            "inputs": inputs or {},
+            "job_template_id": template_id,
+            "job_template_name": template.get("name"),
+            "host_ids": [str(host["id"]) for host in hosts],
             "status": "pending",
-            "simulated": True,
+            "started_at": None,
+            "finished_at": None,
+            "result_summary": (
+                "Simulation queued; no remote command was executed."
+            ),
+            "inputs": inputs or {},
+            "is_simulated": True,
+            "change_id": None,
+            "error_message": None,
         }
 
+        # Create the run first, then create one result per host.
         self.job_runs.create_record(job_run)
 
-        for host in hosts:
-            self.host_results.create_record(
-                {
-                    "id": f"{job_run_id}-{host['id']}",
-                    "job_run_id": job_run_id,
-                    "host_id": host["id"],
-                    "status": "pending",
-                    "output": "Simulation queued; no command executed.",
-                }
-            )
+        try:
+            for host in hosts:
+                self.host_results.create_record(
+                    {
+                        "id": f"{job_run_id}-{host['id']}",
+                        "job_run_id": job_run_id,
+                        "host_id": str(host["id"]),
+                        "status": "pending",
+                        "started_at": None,
+                        "finished_at": None,
+                        "exit_code": None,
+                        "stdout": (
+                            "Simulation queued; no command executed."
+                        ),
+                        "stderr": "",
+                        "is_simulated": True,
+                    }
+                )
+        except Exception:
+            # Avoid leaving an apparently valid run if result creation fails.
+            records = self.job_runs._read_records()
+            records = [
+                record
+                for record in records
+                if str(record.get("id")) != job_run_id
+            ]
+            self.job_runs._write_records(records)
+            raise
 
         return job_run
 
-    def cancel_job(self, job_run_id: str) -> dict[str, Any]:
-        """Cancel a pending simulated job; never contact a live server."""
+    def cancel_job(
+        self,
+        job_run_id: str,
+    ) -> dict[str, Any]:
+        """Cancel a pending simulated job without contacting Satellite."""
         records = self.job_runs._read_records()
 
         for record in records:
-            if str(record.get("id")) == str(job_run_id):
-                if record.get("status") != "pending":
-                    raise ValueError(
-                        "Only pending simulated jobs can be cancelled"
+            if str(record.get("id")) != str(job_run_id):
+                continue
+
+            if record.get("status") != "pending":
+                raise ValueError(
+                    "Only pending simulated jobs can be cancelled"
+                )
+
+            record["status"] = "cancelled"
+            record["result_summary"] = (
+                "Simulated job cancelled; no remote command executed."
+            )
+
+            self.job_runs._write_records(records)
+
+            # Mark associated pending host results as cancelled.
+            result_records = self.host_results._read_records()
+
+            for result in result_records:
+                if (
+                    str(result.get("job_run_id")) == str(job_run_id)
+                    and result.get("status") == "pending"
+                ):
+                    result["status"] = "cancelled"
+                    result["stdout"] = (
+                        "Simulation cancelled; no command executed."
                     )
 
-                record["status"] = "cancelled"
-                self.job_runs._write_records(records)
-                return record
+            self.host_results._write_records(result_records)
 
-        raise ValueError(f"Satellite job run {job_run_id!r} was not found")
+            return record
+
+        raise ValueError(
+            f"Satellite job run {job_run_id!r} was not found"
+        )

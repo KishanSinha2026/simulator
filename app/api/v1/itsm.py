@@ -1,6 +1,7 @@
 """FastAPI endpoints for BMC Helix ITSM change requests."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -12,7 +13,11 @@ from app.schemas.itsm import (
 )
 from app.services.itsm_service import ITSMService
 
-router = APIRouter(prefix="/itsm", tags=["BMC Helix ITSM"])
+
+router = APIRouter(
+    prefix="/itsm",
+    tags=["BMC Helix ITSM"],
+)
 
 
 def get_itsm_service(
@@ -22,14 +27,20 @@ def get_itsm_service(
     return ITSMService(db)
 
 
-@router.get("/changes", response_model=PaginatedResponse)
+@router.get(
+    "/changes",
+    response_model=PaginatedResponse,
+)
 def list_changes(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    status_filter: str | None = Query(default=None, alias="status"),
+    status_filter: str | None = Query(
+        default=None,
+        alias="status",
+    ),
     service: ITSMService = Depends(get_itsm_service),
 ):
-    """List change requests stored in PostgreSQL."""
+    """List persisted ITSM change requests."""
     return service.list_changes(
         limit=limit,
         offset=offset,
@@ -45,7 +56,13 @@ def get_change(
     change_id: int,
     service: ITSMService = Depends(get_itsm_service),
 ):
-    """Retrieve a change request by database ID."""
+    """Retrieve an ITSM change by its database ID."""
+    if change_id < 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="change_id must be greater than zero",
+        )
+
     change = service.get_change(change_id)
 
     if change is None:
@@ -66,14 +83,25 @@ def create_change(
     payload: ITSMChangeCreate,
     service: ITSMService = Depends(get_itsm_service),
 ):
-    """Create a simulated change request in PostgreSQL."""
+    """Create a simulated ITSM change request in PostgreSQL."""
     try:
         return service.create_change(payload)
+
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
+
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "The change conflicts with an existing record "
+                "or violates a database constraint"
+            ),
+        ) from None
+
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -90,14 +118,28 @@ def update_change(
     payload: ITSMChangeUpdate,
     service: ITSMService = Depends(get_itsm_service),
 ):
-    """Update selected fields of a stored change request."""
+    """Update selected fields on an existing ITSM change."""
+    if change_id < 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="change_id must be greater than zero",
+        )
+
     try:
         change = service.update_change(change_id, payload)
+
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
+
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="The update violates a database constraint",
+        ) from None
+
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

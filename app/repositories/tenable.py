@@ -13,11 +13,15 @@ class TenableFindingRepository(BaseRepository[TenableFinding]):
     def __init__(self, db: Session) -> None:
         super().__init__(db, TenableFinding)
 
-    def get_by_source_id(self, source_id: str) -> TenableFinding | None:
-        """Find a finding by its external source identifier."""
+    def get_by_source_id(
+        self,
+        source_finding_id: str,
+    ) -> TenableFinding | None:
+        """Find a finding by its external Tenable finding identifier."""
         statement = select(TenableFinding).where(
-            TenableFinding.source_id == source_id
+            TenableFinding.source_finding_id == source_finding_id
         )
+
         return self.db.scalars(statement).first()
 
     def list_by_severity(
@@ -28,6 +32,12 @@ class TenableFindingRepository(BaseRepository[TenableFinding]):
         offset: int = 0,
     ) -> list[TenableFinding]:
         """Return findings matching a severity value."""
+        if limit < 1:
+            raise ValueError("limit must be greater than zero")
+
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
         statement = (
             select(TenableFinding)
             .where(TenableFinding.severity == severity)
@@ -35,6 +45,7 @@ class TenableFindingRepository(BaseRepository[TenableFinding]):
             .limit(limit)
             .offset(offset)
         )
+
         return list(self.db.scalars(statement).all())
 
     def list_by_ip(
@@ -45,6 +56,12 @@ class TenableFindingRepository(BaseRepository[TenableFinding]):
         offset: int = 0,
     ) -> list[TenableFinding]:
         """Return findings associated with an IP address."""
+        if limit < 1:
+            raise ValueError("limit must be greater than zero")
+
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
         statement = (
             select(TenableFinding)
             .where(TenableFinding.ip_address == ip_address)
@@ -52,4 +69,5 @@ class TenableFindingRepository(BaseRepository[TenableFinding]):
             .limit(limit)
             .offset(offset)
         )
+
         return list(self.db.scalars(statement).all())
