@@ -1,3 +1,4 @@
+"""Central configuration for the VPM360 simulator."""
 
 from functools import lru_cache
 from typing import Literal
@@ -7,6 +8,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 ProviderMode = Literal["json", "api"]
+HttpMethod = Literal["GET", "POST"]
+TenablePagingMode = Literal["none", "offset_limit"]
+TenableRequestLocation = Literal["query", "json"]
 
 
 class Settings(BaseSettings):
@@ -51,6 +55,36 @@ class Settings(BaseSettings):
     tenable_secret_key: SecretStr | None = None
     tenable_verify_tls: bool = True
 
+    # Paths supplied in the BRD.
+    tenable_scan_result_path: str = "/rest/scanResult"
+    tenable_analysis_path: str = "/rest/analysis"
+
+    # The BRD supplies a fields query for scanResult. Its actual behavior
+    # must be validated against the installed client API.
+    tenable_scan_result_fields: str = (
+        "id,name,description,status,details,resultType,startTime,"
+        "finishtime,scanduration,repository"
+    )
+
+    # Client contract settings. None/blank means the API provider must
+    # not activate because the contract has not been confirmed.
+    tenable_auth_header_name: str = ""
+    tenable_auth_header_prefix: str = ""
+
+    tenable_scan_result_method: HttpMethod | None = None
+    tenable_analysis_method: HttpMethod | None = None
+
+    tenable_analysis_id_param: str = ""
+    tenable_analysis_id_location: TenableRequestLocation | None = None
+
+    # Set to "none" only after confirming that scanResult returns the
+    # complete result set. Otherwise configure the approved paging contract.
+    tenable_scan_result_paging_mode: TenablePagingMode | None = None
+    tenable_scan_result_offset_param: str = ""
+    tenable_scan_result_limit_param: str = ""
+    tenable_scan_result_page_size: int = Field(default=100, ge=1, le=1000)
+    tenable_max_scan_results: int = Field(default=10000, ge=1)
+
     # BMC Helix CMDB
     cmdb_base_url: str = ""
     cmdb_username: str = ""
@@ -69,11 +103,7 @@ class Settings(BaseSettings):
     satellite_password: SecretStr | None = None
     satellite_verify_tls: bool = True
 
-    @field_validator(
-        "app_env",
-        "log_level",
-        mode="before",
-    )
+    @field_validator("app_env", "log_level", mode="before")
     @classmethod
     def normalize_text_settings(cls, value: str) -> str:
         if isinstance(value, str):
@@ -90,8 +120,21 @@ class Settings(BaseSettings):
     def normalize_base_urls(cls, value: str) -> str:
         return value.strip().rstrip("/")
 
+    @field_validator(
+        "tenable_scan_result_path",
+        "tenable_analysis_path",
+    )
+    @classmethod
+    def validate_tenable_path(cls, value: str) -> str:
+        value = value.strip()
+
+        if not value.startswith("/") or value.startswith("//"):
+            raise ValueError("Tenable endpoint paths must start with '/'")
+
+        return value
+
     def provider_for(self, integration: str) -> ProviderMode:
-        """Return the configured provider for an integration."""
+        """Return the configured provider for the selected integration."""
         providers: dict[str, ProviderMode] = {
             "tenable": self.tenable_provider,
             "cmdb": self.cmdb_provider,
