@@ -6,11 +6,11 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.tenable import TenableFinding, TenableFindingCVE
+from app.models.tenable import TenableFinding, TenableFindingCVE, TenableScan
 from app.providers.factory import get_provider
 from app.providers.tenable_normalizer import normalize_tenable_record
-from app.repositories.tenable import TenableFindingRepository
-from app.schemas.tenable import TenableFindingCreate
+from app.repositories.tenable import TenableFindingRepository, TenableScanRepository
+from app.schemas.tenable import TenableFindingCreate, TenableScanCreate
 
 
 class TenableService:
@@ -19,7 +19,9 @@ class TenableService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.repository = TenableFindingRepository(db)
+        self.scan_repository = TenableScanRepository(db)
         self.provider = get_provider("tenable")
+
 
     def list_findings(
         self,
@@ -268,3 +270,63 @@ class TenableService:
             "source_offset": offset,
             "source_limit": limit,
         }
+
+    def list_scans(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """List persisted Tenable scans in PostgreSQL."""
+        if limit < 1 or limit > 500:
+            raise ValueError("limit must be between 1 and 500")
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
+        query = self.db.query(TenableScan)
+        total = query.count()
+        items = query.order_by(TenableScan.id).offset(offset).limit(limit).all()
+
+        return {
+            "items": items,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(items) < total,
+        }
+
+    def get_scan(self, scan_id: int) -> TenableScan | None:
+        """Retrieve a scan by its database ID."""
+        return self.scan_repository.get_by_id(scan_id)
+
+    def create_scan(self, payload: TenableScanCreate) -> TenableScan:
+        """Create a scan record in PostgreSQL."""
+        data = payload.model_dump()
+        try:
+            scan = self.scan_repository.create(data)
+            self.db.commit()
+            self.db.refresh(scan)
+            return scan
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def list_provider_scans(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List scans from the active Tenable provider (JSON or API)."""
+        if hasattr(self.provider, "list_scans"):
+            return self.provider.list_scans(limit=limit, offset=offset)
+        return []
+
+    def create_provider_finding(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create a finding directly in the active JSON provider."""
+        if hasattr(self.provider, "create_finding"):
+            return self.provider.create_finding(payload)
+        raise ValueError("Active provider does not support creating findings")

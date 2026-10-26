@@ -148,3 +148,39 @@ class CMDBJsonProvider:
         raise ValueError(
             f"CMDB server {instance_id!r} was not found"
         )
+
+    def create_server(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Create a server CI in the JSON fixture."""
+        if not payload:
+            raise ValueError("Payload cannot be empty")
+        record = dict(payload)
+        source_id = record.get("source_instance_id")
+        if not source_id or not str(source_id).strip():
+            raise ValueError("source_instance_id is required")
+        record["source_instance_id"] = str(source_id).strip()
+        record.setdefault("id", record["source_instance_id"])
+        return self.servers.create_record(record)
+
+    def create_middleware(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Create a middleware CI in the JSON fixture."""
+        if not payload:
+            raise ValueError("Payload cannot be empty")
+        record = dict(payload)
+        source_id = record.get("source_instance_id")
+        if not source_id or not str(source_id).strip():
+            raise ValueError("source_instance_id is required")
+        record["source_instance_id"] = str(source_id).strip()
+        record.setdefault("id", record["source_instance_id"])
+        return self.middleware.create_record(record)
+
+    def create_database(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Create a database CI in the JSON fixture."""
+        if not payload:
+            raise ValueError("Payload cannot be empty")
+        record = dict(payload)
+        source_id = record.get("source_instance_id")
+        if not source_id or not str(source_id).strip():
+            raise ValueError("source_instance_id is required")
+        record["source_instance_id"] = str(source_id).strip()
+        record.setdefault("id", record["source_instance_id"])
+        return self.databases.create_record(record)

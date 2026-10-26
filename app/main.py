@@ -59,12 +59,14 @@ for router in (
     tenable.router,
     cmdb.router,
     itsm.router,
+    itsm.istm_router,
     satellite.router,
 ):
     app.include_router(
         router,
         prefix=settings.api_v1_prefix,
     )
+
 
 
 @app.get("/", tags=["System"])

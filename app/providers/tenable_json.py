@@ -15,11 +15,60 @@ class TenableJsonProvider(JsonProvider):
         fixture_name: str = "tenable/findings.json",
     ) -> None:
         super().__init__(fixture_name)
+        self.scans = JsonProvider("tenable/scans.json")
 
     @staticmethod
     def _normalize(record: dict[str, Any]) -> dict[str, Any]:
         """Normalize a fixture record while retaining its original data."""
         return normalize_tenable_record(record)
+
+    def list_scans(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """List simulated scans from the JSON fixture."""
+        return self.scans.list_records(
+            limit=limit,
+            offset=offset,
+            filters=filters,
+        )
+
+    def get_scan(
+        self,
+        scan_id: str,
+    ) -> dict[str, Any] | None:
+        """Find a scan by simulator ID or external source ID."""
+        record = self.scans.get_by_id(scan_id)
+        if record is not None:
+            return record
+
+        matches = self.scans.list_records(
+            limit=1000,
+            filters={"source_scan_id": scan_id},
+        )
+        return matches[0] if matches else None
+
+    def create_scan(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create a simulated scan in the JSON fixture."""
+        if not payload:
+            raise ValueError("Scan payload cannot be empty")
+
+        record = dict(payload)
+        source_scan_id = record.get("source_scan_id")
+        if not source_scan_id or not str(source_scan_id).strip():
+            record["source_scan_id"] = f"scan-{uuid4().hex[:8]}"
+        else:
+            record["source_scan_id"] = str(source_scan_id).strip()
+
+        record.setdefault("id", record["source_scan_id"])
+        record.setdefault("status", "completed")
+        return self.scans.create_record(record)
 
     def get_finding(
         self,
@@ -116,4 +165,4 @@ class TenableJsonProvider(JsonProvider):
                 f"A finding with ID {record['id']!r} already exists"
             )
 
-        return self.create_record(record)
+        return self.create_record(record)

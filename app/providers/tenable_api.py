@@ -361,6 +361,17 @@ class TenableAPIProvider:
 
         return scans
 
+    def list_scans(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List Tenable scans retrieved from the API provider."""
+        scans = self._fetch_all_scans()
+        return scans[offset : offset + limit]
+
+
     def _fetch_analysis(
         self,
         scan: dict[str, Any],

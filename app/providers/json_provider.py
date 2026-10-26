@@ -41,6 +41,17 @@ class JsonProvider(BaseProvider):
     def _read_records(self) -> list[dict[str, Any]]:
         """Read and validate an array of JSON objects."""
         if not self.file_path.exists():
+            path_str = str(self.file_path)
+            if "\\itsm\\" in path_str or "/itsm/" in path_str:
+                alt = Path(path_str.replace("\\itsm\\", "\\istm\\").replace("/itsm/", "/istm/"))
+                if alt.exists():
+                    self.file_path = alt
+            elif "\\istm\\" in path_str or "/istm/" in path_str:
+                alt = Path(path_str.replace("\\istm\\", "\\itsm\\").replace("/istm/", "/itsm/"))
+                if alt.exists():
+                    self.file_path = alt
+
+        if not self.file_path.exists():
             raise FileNotFoundError(
                 f"Required fixture file was not found: {self.file_path}"
             )

@@ -107,3 +107,16 @@ class ITSMJsonProvider:
             offset=offset,
             filters=filters,
         )
+
+    def create_worklog(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create a simulated worklog in the JSON fixture."""
+        if not payload:
+            raise ValueError("Worklog payload cannot be empty")
+        record = dict(payload)
+        record.setdefault("id", f"worklog-{uuid4().hex[:8]}")
+        record.setdefault("source_worklog_id", record["id"])
+        record.setdefault("source_payload", {"is_simulated": True})
+        return self.worklogs.create_record(record)

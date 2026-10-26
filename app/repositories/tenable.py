@@ -71,3 +71,22 @@ class TenableFindingRepository(BaseRepository[TenableFinding]):
         )
 
         return list(self.db.scalars(statement).all())
+
+
+class TenableScanRepository(BaseRepository):
+    """Database operations specific to Tenable scans."""
+
+    def __init__(self, db: Session) -> None:
+        from app.models.tenable import TenableScan
+        super().__init__(db, TenableScan)
+
+    def get_by_source_id(
+        self,
+        source_scan_id: str,
+    ):
+        """Find a scan by its external Tenable scan identifier."""
+        from app.models.tenable import TenableScan
+        statement = select(TenableScan).where(
+            TenableScan.source_scan_id == source_scan_id
+        )
+        return self.db.scalars(statement).first()

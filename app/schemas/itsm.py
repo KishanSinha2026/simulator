@@ -150,6 +150,37 @@ class ITSMChangeResponse(ITSMChangeBase):
     updated_at: datetime
 
 
+class ITSMChangeListResponse(BaseModel):
+    """Paginated list of ITSM changes."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ITSMChangeResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    has_more: bool
+
+
+class ITSMWorklogBase(BaseModel):
+    """Base fields for an ITSM worklog."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        from_attributes=True,
+    )
+
+    worklog_type: str | None = Field(default="General Information", max_length=100)
+    description: str = Field(min_length=1)
+    submitter: str | None = Field(default=None, max_length=255)
+    source_worklog_id: str | None = Field(default=None, max_length=100)
+    source_payload: dict[str, Any] | None = None
+
+
+class ITSMWorklogCreate(ITSMWorklogBase):
+    """Schema for creating a worklog entry."""
+
+
 class ITSMWorklogResponse(BaseModel):
     """Schema returned for an ITSM worklog entry."""
 
@@ -168,6 +199,18 @@ class ITSMWorklogResponse(BaseModel):
     created_at: datetime
 
 
+class ITSMWorklogListResponse(BaseModel):
+    """Paginated list of ITSM worklogs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ITSMWorklogResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    has_more: bool
+
+
 class ITSMChangeHistoryResponse(BaseModel):
     """Schema returned for an ITSM change history record."""
 
@@ -184,3 +227,25 @@ class ITSMChangeHistoryResponse(BaseModel):
     details: str | None = None
     source_payload: dict[str, Any] | None = None
     created_at: datetime
+
+
+class ITSMChangeHistoryListResponse(BaseModel):
+    """Paginated list of ITSM change history."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[ITSMChangeHistoryResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    has_more: bool
+
+
+class ITSMImportResponse(BaseModel):
+    """Summary of ITSM provider import operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    changes_imported: int
+    worklogs_imported: int
+    errors: int

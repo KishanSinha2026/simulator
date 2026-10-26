@@ -1,0 +1,2927 @@
+300Plus  VPM360
+Business RequirementsDocument
+Centralized Patch & VA/PT/CA Management
+VPM360  |  Product configuration, integration and deployment
+DOCUMENT CONTROL
+DETAIL
+Client
+IndusInd Bank Limited
+Submitted by
+300Plus
+Product
+VPM360
+Version
+V.1
+Issue date
+12 October 2026
+Purpose
+Business, functional and technical requirements for client review and approval
+Classification
+Confidential - IndusInd Bank / 300Plus
+Prepared for IndusInd stakeholders across Infrastructure, Security/VAPT, CMDB, ITSM, Application Ownership and Enterprise Technology.
+POSITIONING:  VPM360 is an existing product. This engagement is to configure, customize and integrate it into IndusInd Bank environments. It is not a greenfield product-development engagement.
+Approval basis
+This V.1 captures the available business and technical inputs. The final contractual in-scope/out-of-scope document has not been provided; the draft scope in Section 2 requires client confirmation. Client-specific API access, mappings and scripts scheduled for configuration or deployment are not represented as prerequisites for BRD submission.
+0. Document usage and control
+This document presents one end-to-end operating model for vulnerability management and patch orchestration. It embeds the configuration rules, exact source fields, reporting schemas, integration endpoints and controls required for client review. Sample values are examples; they do not authorize a production change.
+Approval and responsibility
+Party
+Review responsibility
+IndusInd Bank - business and application owners
+Confirm business scope, ownership, approval rules, report access and closure decisions.
+IndusInd Bank - platform and integration owners
+Confirm system URLs, credentials, API permissions, source mappings and approved execution scripts during configuration or deployment.
+300Plus - VPM360 implementation team
+Configure the existing platform, document mapping decisions, validate agreed interfaces and support client acceptance testing.
+Contents
+Sections
+What the reader will find
+1-3
+Executive summary, scope and platform modules
+4-5
+Integration touchpoints; ticket automation and reusable job templates
+6-7
+Full business workflow; functional requirements and As-Is / To-Be processes
+8-9
+Technical design and integrations; Power BI reporting and governance
+10-12
+RBAC, infrastructure/deployment and client dependencies/acceptance
+Appendix A-F
+Tenable, Squad1, CMDB field catalogues; Helix payload; eight report dictionaries; governance field dictionary and sample response
+DOCUMENT STATUS:  Confirmed business instructions are distinguished from proposed implementation controls and outstanding client mappings. No unknown URL, secret, approval form or orchestration engine is treated as approved by default.
+1. Executive summary
+IndusInd Bank uses multiple security and infrastructure systems to identify vulnerabilities, manage server inventory, obtain change approvals and execute patching. The operational challenge is to connect these activities into a reliable process in which teams can see the affected server, responsible owner, approved work, execution outcome and closure evidence without maintaining disconnected trackers.
+VPM360 will provide a central control point for the lifecycle. It will import Tenable and Squad1 findings, apply agreed normalization rules, correlate server IP addresses with the BMC CMDB, freeze the eligible inventory, and manage change tickets through BMC Helix. Approved patch operations will be coordinated through the tools already used by IndusInd: Red Hat Satellite for Linux, SCCM for Windows, and Automation Controller for approved Database, Middleware and AIX scripts.
+Before patching, VPM360 must verify the required gates. After execution, it must collect per-server technical evidence, follow up on security verification and synchronize the permitted ticket and CMDB records. Eight Power BI reports and a detailed governance pack will present the history of each finding, change, execution, exception and closure.
+Control remains with IndusInd. Its security teams own assessment outcomes, its change process owns authorization, and its engineering teams own patch content and the automation scripts. VPM360 coordinates the agreed workflow; it does not replace these control functions.
+Business outcomes
+One traceable finding-to-closure journey across security findings, servers, change approvals and patch jobs.
+Less manual reconciliation between Tenable, Squad1, CMDB, Helix and execution tools.
+Controlled host selection, maintenance windows, prechecks, execution and postchecks.
+Clear accountability for unmatched assets, pending approvals, exceptions, failures and manual rollback.
+Consistent management reporting with preserved timestamps, evidence and responsible owners.
+2. Project scope and boundaries
+SCOPE APPROVAL:  The authoritative final scope/out-of-scope statement is still awaited. The following is a proposed BRD baseline reconstructed from the supplied business flow; IndusInd approval will make it the governing project scope. It does not add a new commercial commitment.
+2.1 Proposed in-scope requirements
+Configure source connectors to import Tenable and Squad1 findings and synchronize subsequent source lifecycle updates.
+Normalize applicable vulnerability records, CVSS/severity, CVEs, timestamps and remediation classifications according to the approved rules.
+Correlate server IP addresses to eligible BMC CMDB server CIs; identify owner, environment and attributes; produce an IP-only delta report.
+Maintain inventory-freeze snapshots and risk/SLA classification used by the approved change and patch lifecycle.
+Configure Helix Change Management automation: creation or linking, approval/window/status verification, progress and worklog updates, and controlled closure.
+Configure reusable patch-job templates for Linux, Windows, databases, middleware and AIX, routed to existing client execution systems.
+Capture precheck, execution, postcheck, manual recovery handover, subsequent vulnerability verification and approved CMDB synchronization.
+Configure eight Power BI reports, the 73-column governance pack, approved RBAC, audit trail and required client-side deployment environments.
+2.2 Proposed out-of-scope baseline - to validate
+Building a new VPM360 product or replacing Tenable, Squad1, CMDB, Helix, Satellite, SCCM or Automation Controller.
+Owning or writing IndusInd Database, Middleware and AIX patch commands/scripts, and procurement or administration of IndusInd Ansible licences.
+Executing automated rollback through VPM360; the agreed path is recorded manual handover and subsequent status tracking.
+Automatically launching vulnerability scans/rescans or directly changing security scanner findings unless separately approved.
+Unapproved configuration-remediation scripts, direct OEM download/account integrations, or OEM integrations not expressly agreed as part of the scope.
+Automatic patch execution where asset identity, authorization, downtime, content, site API or required validation is unresolved.
+2.3 Scope assumptions requiring confirmation
+The scope includes server operating systems and the related database, middleware and AIX patching workflows described in the current operating procedures. The raw business material also refers to VA/PT/CA findings. Configuration-type findings will be retained and governed, but unattended configuration remediation requires its own approved execution route. Any specific OEM count, vendor-download function or scope exception must be confirmed in the final scope.
+3. VPM360 modules and user journey
+Module
+Business responsibility
+Integration Hub
+Connection profiles, security method, health checks, testing and activation.
+Import Center
+Configured imports from Tenable and Squad1 with scheduling, paging and run history.
+Normalization
+Mapping, severity filtering, CVSS rule, canonical fields and raw evidence.
+Correlation
+IP-based mapping to eligible CMDB server CIs, ownership and service association.
+Inventory Freeze & Delta
+Approved fixed host scope and an IP-only missing-CI report.
+Risk & SLA
+Configured priority, ageing, target dates and exception states.
+Ticket Automation
+Helix change creation/linking, approval monitoring, triggers, worklogs and closure controls.
+Reusable Job Templates
+Host multi-selection, patch catalog, environment/window and dispatch configuration.
+Patch Execution
+Invoke client-approved Satellite, SCCM or Controller operation and collect outputs.
+Validation & Lifecycle
+Precheck, postcheck, source reassessment, failure/rollback handover and sync.
+Reporting & Governance
+Eight Power BI outputs, lifecycle evidence and audit trail.
+RBAC & Policy Administration
+User/report entitlements and approved, versioned workflow rules.
+3.1 Integration Hub configuration
+Field / control
+Input / behavior
+Connector Type (Family)
+Single-select family, e.g. Tenable, Squad1, CMDB, Helix, Satellite, SCCM or Ansible.
+Connector Name
+Auto-generated unique label; associated with selected family/environment.
+Connection Method
+REST API for configured REST integrations; fixed where supported.
+Environment
+Editable single-select environment; UAT and Production configurations separated.
+Base URL
+Client-approved endpoint; stored by environment.
+Port
+Configured only where required.
+Security Type
+Approved authentication method; supports different client systems.
+Access Key / Secret
+Stored in approved secret mechanism; masked and not exposed in reports.
+Test Connection
+Executes configured connection test; distinct from the business import API.
+Publish / Activate
+Available only after successful configured test and permission checks.
+Delete / Suspend
+Delete unpublished profiles; suspend/activate published profiles under policy.
+Landing page
+Connector Name, Family, Environment, Security Type, Health, Last Test, Test Connection, Edit and Active/Suspend.
+3.2 Import scheduling and landing page
+Field
+Rule
+Connector Name
+Select one published connector; family auto-populates.
+API URL(s)
+Configured request path; allow multiple routes only where the source contract supports it.
+Frequency
+Daily or 7/15/30/45/60/90/180 days as configured.
+Start Date and Time
+Effective source-import schedule and time zone.
+Execution history
+Last scheduled and on-demand run, result, number processed and error reference.
+Landing page
+Connector, Family, Frequency, Start Date, Time, Publish Date, Scheduled Last Run/Status, On-demand Last Run/Status.
+3.3 Normalization, correlation and ticket configuration
+Normalization configuration will select a connector, show its family, apply optional filters, select source fields and map them to canonical fields. Its landing page will show total fields, selected fields, filters, canonical entities and rules. Correlation configuration will choose a connector, the CMDB target, the correlation field (IP), and the approved target attributes to retain; the configuration summary displays both field selection and rules. Ticket automation configuration will map approved change fields, triggers and action APIs, and will show execution status, last run, failures and publish state.
+4. Integration touchpoints and source contracts
+Every connection is configured for a specific purpose and environment. IndusInd will provide production access details, field mappings and approved execution identifiers at the agreed configuration or deployment stage. A documented endpoint is not treated as client-tested until a successful sanitized exchange and required permissions are confirmed.
+Touchpoint
+Business purpose
+Input from IndusInd / timing
+Tenable
+Read scan and vulnerability data for server findings.
+Access key and permitted network path at deployment.
+Squad1
+Import source finding IDs and lifecycle/status/exception updates.
+Working import endpoint planned 19 October 2026; auth and paging during integration.
+CMDB
+Find the single eligible server CI by IP and enrich inventory.
+Exact base URL, dataset, server/owner mappings during configuration/deployment.
+Helix ITSM 26.1
+Create/link change; verify approval, window, status; update worklogs and closure.
+Production auth, forms, approval/status fields and permitted transitions before activation.
+Satellite 6.9
+Resolve Linux hosts and invoke approved precheck/patch/postcheck jobs.
+Installed API, IDs, content and permissions during configuration/deployment.
+SCCM 2509
+Target approved Windows collections, read activity and deployment results.
+Site API, collection/ADR mappings, write utility and response samples during deployment.
+Automation Controller 4.2
+Invoke approved client DB/MW/AIX scripts and collect evidence.
+IndusInd licensing, token, inventory, credentials and scripts before route activation.
+Power BI / CMDB writeback
+Report business lifecycle and synchronize permitted patch metadata.
+Workspace access, field mapping and authorized CMDB write dataset during configuration.
+4.1 Tenable - vulnerability and scan import
+Purpose: VPM360 needs Tenable scan results to identify affected servers, the detected weakness, its severity, CVEs and recommended action. The connector brings source records into VPM360; it does not initiate scans in the agreed baseline.
+Source interface
+Route supplied
+Status / output
+Scan results
+https://10.24.112.34/rest/scanResult?fields=id,name,description,status,details,resultType,startTime,finishtime,scanduration,details,repository
+Supplied source URL; HTTP method, paging, authentication and actual response shape to validate.
+Finding details
+https://10.24.112.34:443/rest/analysis
+Supplied finding route; returns scanner details listed in Appendix A. Request method/body and query/pagination to validate.
+VPM360 will store the original record and its normalized representation. Informational records are excluded from the actionable finding view. The chosen CVSS score is V3 Base Score where present, otherwise V4 Base Score, as instructed by IndusInd. Vulnerability start is based on First Discovered; Last Observed is preserved as the latest observation timestamp and must not be confused with a confirmed closure date. All CVE IDs are retained.
+CLIENT DEPENDENCY:  IndusInd will provide the Tenable access key at deployment. The API verbs, request parameters, paging, permissions and sanitized successful/error responses will be confirmed before the connector is activated.
+4.2 Squad1 - vulnerability lifecycle import
+Purpose: Squad1 supplies a broader vulnerability-management record, including ownership, outstanding work, exception IDs and expiry dates, UAT/Production fix indicators, completion and reopen details. Continuous synchronization allows VPM360 to track whether a finding remains active or under an approved exception.
+Contract element
+Specified requirement
+Client confirmation
+Retrieval
+One Squad1 import API expected on 19 October 2026.
+Exact URL and HTTP method, request filter, paging or full-snapshot convention.
+Response
+JSON object with statusCode, statusMessage and data array.
+HTTP status, error payload and response availability.
+Identity
+VulnerabilityNo and Target; retain plugin/service scope where applicable.
+Stability, record granularity and duplicate/reopen behavior.
+Continuous updates
+STATUS, LastModifiedDate, pending owner, exception/expiry, completion, reopen and evidence.
+Timestamp time zone, status meanings, retention and closure verification policy.
+Source data
+82 exact keys in Appendix B and supplied full response shape.
+Field optionality and source-authoritative mapping.
+Critical rule: VPM360 must obtain Exception_ID and Exception_END_Date from the Squad1 source for the agreed exception workflow. A report template that labels these as Helix-derived does not override this instruction. Helix change decisions are separately maintained as change-workflow information.
+The provided Squad1 example contains a configuration finding (weak TLS cipher). Such a record is retained and routed to the separately approved remediation procedure. It must not be scheduled as an OS patch merely because it includes a CVE.
+4.3 BMC CMDB - IP-to-server correlation
+Purpose: resolve an exact IP address from a finding to its eligible BMC_ComputerSystem CI, then retrieve the approved inventory attributes and ownership. The primary correlation key is IP only; hostname or other fallback matching is not enabled unless the client separately approves it.
+Purpose / method
+API route
+Minimum result
+Authenticate  POST
+/api/jwt/login
+JWT token
+Find IP CI  GET
+/api/cmdb/v1.0/instances/{datasetId}/BMC.CORE/BMC_IPEndpoint
+IPEndpoint instance_id
+Resolve related server  GET
+/api/cmdb/v1.0/graphwalk?graph_walk_query={...}
+ComputerSystem instance_id + CI data
+Read server CI  GET
+/api/cmdb/v1.0/instances/{datasetId}/BMC.CORE/BMC_ComputerSystem/{instanceId}
+Server attributes
+Confirm field names (setup)  GET
+/api/cmdb/v1.0/attributes/BMC.CORE/BMC_ComputerSystem
+Attribute metadata
+VPM360 matches BMC_IPEndpoint.Address against the source IP, traverses approved CMDB relationships to BMC_ComputerSystem, and records the exact server instance ID. The result must be one eligible active server. No match is reported to CMDB as an IP-only delta entry. Multiple or inactive matches are held for review; no unattended patch is launched.
+Correlation outcome
+Behavior
+MATCHED
+One approved eligible server; continue to ownership, freeze and approval checks.
+CMDB_NOT_FOUND
+Publish only the unmatched IP in the CMDB CI Delta Report; hold automated progression.
+AMBIGUOUS_MATCH
+More than one eligible server or unresolved relationship; assign for CMDB clarification.
+CMDB_CI_INACTIVE
+Inactive or deleted server; hold from unattended execution.
+The server inventory fields (22 rows), middleware inventory fields (19) and database inventory fields (14) are reproduced exactly in Appendix C. Both System Environment and Prod/Non Prod remain visible, even where overlapping, because IndusInd explicitly requested both.
+Dependency:  The CMDB/Helix team will provide the exact URL, access method, dataset and the approach for identifying one responsible asset owner where multiple names are stored against an asset, during configuration or deployment. BRD submission does not require those values, but automated owner-based assignment does.
+4.4 BMC Helix ITSM 26.1 - change ticket automation
+Purpose: VPM360 will create or link change requests, confirm the decision and approved maintenance window, track ticket status, update work information, and synchronize permitted progress and closure data. IndusInd retains its established approval matrix and risk/SLA logic.
+Operation
+API / interface
+Purpose and readiness
+Token
+POST /api/jwt/login
+QA token interface supplied; production authentication and scope must be verified.
+Create change
+POST /api/arsys/v1/entry/CHG:ChangeInterface_Create
+Supplied QA creation body; capture AR entry ID and business change number.
+Read change
+GET /api/arsys/v1/entry/{readForm}?q={qualification} or /{entryId}
+Candidate AR pattern; exact client read form and field names pending.
+Read status (raw draft)
+rest-api/v2/change/{changeRequestId}
+Raw-draft route; base/service contract and availability not yet validated.
+Approval + window
+Approved Helix read form / client approval API
+Decision, approver, current state, cancellation, start/end and time zone pending.
+Update change
+CHG:ChangeInterface / approved AR update route
+Allowed implementation fields and transitions pending.
+Work information
+CHG:WorkLog / approved worklog interface
+Append execution, failure, handover and audit details; method/payload pending.
+Closure
+Agreed Helix change workflow action
+Application-team closure decision, allowed transition and evidence mapping pending.
+The bank provided a QA endpoint at https://servicedeskindusind-qa-restapi.onbmc.com. The login uses form-encoded credentials under the documented AR pattern. Subsequent requests use the client-approved AR-JWT authorization scheme. No live credentials or JWT values belong in the BRD.
+Change creation business rules
+Scenario
+Required rule
+Each vulnerability ID
+One distinct Helix change request per vulnerability ID; deduplication/retry controls prevent accidental duplicate ticket creation.
+Non-production
+Create a Standard Change; as per IndusInd input, does not require normal approval or downtime for this category. Applicable application/DB SOP signoffs still apply.
+Production
+Create a Normal Change, requiring approved decision and downtime/maintenance window before execution.
+Priority / SLA
+Use Helix configured risk triage, prioritization and pre-existing department-based approval matrix.
+Owner resolution
+Use CMDB asset/SPOC owner mapping after IndusInd supplies the unique-owner rule.
+Ticket events
+Create/link, refresh status, approval/rejection/cancellation, exception, precheck, patch progress/failure, manual rollback handover, closure request and closure sync.
+Manual changes
+Where permitted, link a manually created change; still verify the authoritative decision and effective window.
+Worklog
+Record reason, timing, user/system actor, execution IDs, raw evidence references and recovery handover; notify the agreed asset owner.
+PAYLOAD:  The exact 19 named fields and supplied QA example values appear in Appendix D. Values such as DR Drill, Bugfix, Critical, Development and the sample requester are TEST values; no production patch default is inferred.
+4.5 Red Hat Satellite 6.9 - Linux execution
+Purpose: use existing Satellite-managed host inventory and approved job templates to execute the Linux patching runbooks. VPM360 schedules the operation, selects the exact eligible hosts, runs the precheck and collects result/evidence for each host.
+Method
+Route
+Expected use
+S1 GET
+/api/v2/hosts?search={encodedQuery}
+Resolve exact registered hostname/Host ID; confirm installed alias.
+S2 GET
+/api/v2/job_templates?search={encodedQuery}
+Find approved PRECHECK/PATCH/POSTCHECK template IDs and allowed inputs.
+S3 POST
+/api/job_invocations
+Invoke approved static host set; capture Job Invocation ID.
+S4 GET
+/api/job_invocations/{id}
+Read running/terminal state, result and times.
+S5 GET
+/api/job_invocations/{id}/hosts/{hostId}
+Read per-host completion and output.
+S6 GET
+/api/job_invocations/{id}/hosts/{hostId}/raw
+Optional raw per-host output; verify format in the installed instance.
+S7 POST
+/api/job_invocations/{id}/cancel
+Optional cancellation under an approved policy; it is not rollback.
+Satellite reference materials use both /api and /api/v2 aliases. The accepted routes, org/location, certificate trust, job-template inputs and output representation must be validated against IndusInd Satellite 6.9 at /apidoc/v2.html. The job ID and exact host IDs are stored before polling. A global success does not conceal a failed host.
+A distinct read-only precheck is required when VPM360 must decide whether patching may begin. The supplied Linux YAML currently performs backups and changes/reboots as part of its full procedure; it cannot be treated as a harmless precheck simply because checks appear near its beginning. Both the standard and Java-exclusion patch variants must be available only where approved.
+4.6 SCCM 2509 - Windows execution
+Purpose: coordinate the existing Configuration Manager 2509 patch deployment process without substituting an invented REST patch engine. Windows version and source host list are selected, mapped to the exact ResourceID and approved deployment target, then checked for client activity before they are included in the deployment scope.
+Need
+Candidate interface
+Input / expected outcome
+Site / authentication
+GET /AdminService/wmi/SMS_Site
+Identify provider/site; confirm supported authentication and RBAC.
+ADR mapping
+GET /AdminService/wmi/SMS_AutoDeployment
+Map ADR and approved update group/deployment.
+OS folders
+GET /AdminService/wmi/SMS_ObjectContainerNode
+Read only if OS groups are SCCM console folders; AD source not assumed.
+Collections
+GET /AdminService/wmi/SMS_Collection
+Obtain approved source/target CollectionIDs.
+Synced hosts
+GET /AdminService/wmi/SMS_FullCollectionMembership
+Read Name/ResourceID when source is a collection; otherwise use client AD utility.
+Client activity
+GET /AdminService/wmi/SMS_CombinedDeviceResources
+Read ClientActiveStatus, IsClient and last activity for precheck.
+Deployment policy
+GET /AdminService/wmi/SMS_UpdateGroupAssignment
+Read AssignmentID, schedule, deadline and reboot policy.
+Membership write
+Approved SCCM utility or supported PowerShell/WMI method
+Add/remove only this job's direct membership rules; exact REST wrapper pending.
+Deployment status
+GET /AdminService/wmi/SMS_SUMDeploymentAssetDetails
+Collect per-host status, compliance, times, restart/error evidence.
+Schedule
+VPM360 scheduler + existing SCCM deployment controls
+No invented AdminService schedule-job endpoint.
+The original SCCM operating model includes ADR-maintained patch libraries, grouping by Windows version, scheduled start/end and reported Deployment Status categories. The client stated an approximately 15-minute agent polling cycle; this is a client-specific setting to confirm, not a default promised by Microsoft. An active SCCM client signal is a readiness gate, not proof of live host reachability.
+VPM360 must report compliant, in progress, error, unknown and skipped separately. A compliant result may mean newly installed, already installed or not applicable. When the business requires new-installation proof, baseline and per-update evidence must also be obtained. The client must confirm the actual OS/AD source, mapping of ADR/CollectionID/AssignmentID, scope-changing utility, status fields and windows/reboot behavior.
+4.7 Ansible Automation Controller 4.2 - Database, Middleware and AIX
+Purpose: Automation Controller supplies target inventory, permissioned remote execution and status/output retrieval. IndusInd engineers retain all vendor-specific patch commands in approved, versioned scripts. VPM360 executes the complete script per selected host or a validated centralized-runner mode, rather than constructing shell commands for each SOP step.
+Function
+Controller route
+Expected result
+Token (conditional)
+POST /api/v2/tokens/
+Service token can instead be provisioned securely by IndusInd.
+Hosts
+GET /api/v2/inventories/{inventory_id}/hosts/?page_size=200
+Read enabled hosts; follow pagination.
+Schema
+OPTIONS /api/v2/inventories/{inventory_id}/ad_hoc_commands/
+Confirm fields and allowed execution modules on Controller 4.2.
+Execute
+POST /api/v2/inventories/{inventory_id}/ad_hoc_commands/
+Launch the approved script with exact host limit; save returned command ID.
+Status
+GET /api/v2/ad_hoc_commands/{command_id}/
+Read status, timestamps and explanations.
+Events
+GET /api/v2/ad_hoc_commands/{command_id}/events/?page_size=200
+Capture structured step/host events; follow next links.
+Stdout
+GET /api/v2/ad_hoc_commands/{command_id}/stdout/
+Capture full raw evidence; parse approved result markers.
+Cancel
+POST /api/v2/ad_hoc_commands/{command_id}/cancel/
+Optional policy-approved cancel; not an automatic rollback.
+Controller inventory and machine credentials are owned by IndusInd. The platform receives only a service access reference and the approved inventory/host mapping. Scripts must emit a clear PATCH_STEP_RESULT for each relevant step and a PATCH_RUN_RESULT containing final status, installed patch/version and evidence location. Additional correlation values such as run ID and host are agreed with IndusInd during configuration.
+INDUSIND OWNERSHIP:  Ansible licensing, access/permissions and the Database, Middleware and AIX automation scripts are IndusInd responsibilities. 300Plus configures VPM360 integration and validates orchestration using the scripts and infrastructure IndusInd makes available. And also provides access of Linux satellite and SCCM at during customization or configuration or at time of deployment.
+4.8 Power BI and CMDB lifecycle writeback
+Power BI consumes approved datasets for eight reports. The reporting connector must support refresh, user entitlements and data definitions agreed for each report. VPM360 preserves detailed execution and lifecycle evidence even when a reporting refresh is delayed.
+The raw business requirement is to update CMDB after the approved ticket-closure stage using OS Version and Last Patch Updated Date & Time. The technical integration also describes potential earlier writeback after patch validation. V.1 will not silently merge the two: the bank must approve the point of writeback, exact class/dataset, attribute names, accepted values and reconciliation process before CMDB writes are enabled.
+PATCH {CMDB_BASE}/api/cmdb/v1.0/instances/{writeDatasetId}/{namespace}/{className}/{instanceId}
+Authorization: AR-JWT <token>
+Content-Type: application/json
+{
+  "attributes": {
+    "<client_os_version_attribute>": "<verified value>",
+    "<client_last_patch_attribute>": "<verified timestamp>"
+  }
+}
+The PATCH example is a proposed mapping template. Placeholder attribute names, dataset and write permissions require CMDB-team confirmation.
+5. Ticket automation and reusable patch jobs
+5.1 Event-driven change automation
+Trigger
+VPM360 action
+Persisted audit / outcome
+Finding accepted and matched
+Create a change per vulnerability ID or link an authorized manually raised change.
+Source ID, target CI, submit request, creation result and CR number.
+Change submitted
+Poll permitted status and approval workflow; capture actor, decision and window.
+Status history, approver, decision time, approved start/end and time zone.
+Rejected / cancelled
+Stop new execution; preserve change reason and current owner.
+Decision actor/time, status and governance clock.
+Squad1 exception update
+Record Exception_ID and Exception_END_Date; stop normal remediation path under approved policy.
+Source record/version, expiry, pending owner and evidence.
+Approval and window valid
+Allow job preparation only for the approved frozen scope.
+Approval snapshot, host list hash, planned script/template and patch level.
+Precheck passed / failed
+Dispatch only passing targets or hold and notify affected owner.
+Per-host test/result, output ID and reason.
+Patch success
+Update Helix worklog/status as permitted; request validation/closure.
+Execution ID, version, timestamps, logs and postcheck.
+Patch failure
+Publish failure worklog and manual rollback handover; notify asset owner.
+Error, responsible group, handover time, rollback detail reference.
+Closure decision / reassessment
+Follow application-team ticket closure and subsequent security confirmation.
+Approver, decision, closed time, source verification and CMDB sync result.
+5.2 Thirteen reusable job template fields
+# / Field
+Behavior
+Source and purpose
+1  Host Name
+Configurable / multi-select
+Satellite, SCCM or Controller eligible inventory - Choose one or more; use approved frozen host scope.
+2  Host IP
+Auto / fixed
+Matched CMDB CI - Display the correlated server IP.
+3  Application Name
+Fixed / read-only
+CMDB - Display approved application mapping.
+4  IBL SPOC
+Fixed / read-only
+CMDB owner mapping - Display client-resolved unique owner or hold if unresolved.
+5  OS Type
+Fixed / read-only
+CMDB - Route to Linux, Windows or related technology profile.
+6  OS Version
+Fixed / read-only
+CMDB - Show version used for patch eligibility.
+7  Recommended Patch
+Catalog-controlled selection
+Approved patch catalog / client inventory - Select applicable patch/version, with expected outcome.
+8  PreCheck API
+Fixed integration mapping
+Configured executor precheck route - Internal call; show result and output reference.
+9  Job Invocation ID
+Generated / read-only
+Executor response - Saved after successful submission; not user-entered.
+10  Post Deployment Check API
+Fixed integration mapping
+Configured executor status/verification - Collect post-run evidence.
+11  Downtime Date & Time
+Client-policy editable
+Approved Helix change window - Preserve original window and record authorized override.
+12  Patch Cycle
+Configured / selected
+Patching policy / inventory - Record the applicable cycle and target date.
+13  Job Invocation Date & Time
+Client-policy editable
+Helix-approved timing / scheduler - Schedule within permitted window and keep effective time.
+Additional internal controls can capture inventory ID, script/template name and version, patch ID, original versus effective window, change ID, per-host execution sequence, timezone, stop-on-failure behavior and evidence reference. These support the thirteen visible business fields; they do not authorize end users to enter arbitrary commands.
+5.3 Reusable job lifecycle
+Select the patching technology and retrieve the enabled hosts from its configured execution inventory.
+Select one or more hosts. Resolve every host to its authoritative CMDB CI and executor identifier; reject ambiguous, inactive or mixed-eligibility selections.
+Load Environment, Application Name, IBL SPOC, OS, original Helix change/window and approved patch metadata.
+Freeze the target set, patch content and template/script version. Record any permitted edit to effective downtime and require the appropriate approval.
+At scheduled time recheck current approval, cancellation, exact host scope, maintenance window, required UAT signoff and patch/content availability.
+Execute the configured non-destructive precheck. Only the exact passing hosts proceed.
+Submit one approved execution unit per agreed host or group, store the provider operation ID, and poll the status and host outputs.
+Validate installed version/update, product and service health, reboot outcome and mandatory script-result markers. Collect raw and normalized evidence.
+For failure, block dependent work and send manual rollback handover; for validated execution, record Helix worklog only and wait for the subsequent security/closure decision.
+After closure authorization, synchronize the approved CMDB fields and publish the governance records.
+5.4 Downtime and scheduling policy
+Client shared inputdistinguishes Standard non-production changes and approval-governed production changes. For database and application patching, UAT functional signoff and required application downtime from the product SOP remain applicable even if the generic Standard change does not require formal CAB approval. Production jobs must use the current approved Helix window; an override outside that window is blocked until explicitly re-approved. Mixed environments or non-overlapping approved windows require separate runs unless IndusInd authorizes another rule.
+5.5 Manual rollback and exception handling
+When a patch fails, VPM360 must preserve the failure evidence, update the Helix worklog with a manual handover to the responsible infrastructure team, and initiate the agreed notification to the asset owner. The technical owner decides and performs repair or rollback under the approved procedure. VPM360 records the result, timestamps, output ID, worklog reference and status. A failed or completed rollback does not automatically close the security finding.
+Squad1 exception ID and end date are tracked independently of a exception taken against particular vulnerability. Platform cancelled the tickets and update our power bi report for which vulnerability exception are taken and update exception ID and end date.
+6. End-to-end business workflow
+The end-to-end flow begins with security findings and ends only after the technical, security and business records have reached their permitted final states. A patch job success is a technical milestone, not automatic vulnerability closure. All branches remain visible in VPM360 and the governance pack.
+Stage
+Activity
+Rule / exception
+01  Import findings
+Tenable and Squad1 imports create raw and canonical records; source timestamps and identities retained.
+Failed or incomplete import is logged, not treated as remediation.
+02  Normalize and classify
+Apply severity/CVSS rules, preserve CVEs and decide whether the finding is patch or configuration remediation.
+Informational items filtered from the actionable set; configuration remediation kept on a separately approved path.
+03  Correlate server
+Match the exact source IP to one eligible CMDB server; enrich owner, OS and environment.
+Missing/inactive/ambiguous matches held. IP-only missing-CI Delta Report sent to CMDB.
+04  Freeze and triage
+Freeze eligible server list, patch cycle, risk and approved target content.
+No unstated host may enter the run.
+05  Create / track change
+Create one Helix change per vulnerability ID or link approved manual change.
+Reject/cancel/exception stops normal dispatch; governance clock and owner updated.
+06  Validate plan / window
+Read authoritative approval, target scope, scheduled maintenance window and UAT signoff as applicable.
+Unapproved or out-of-window work remains blocked.
+07  Run readiness check
+Check approved host readiness and executor precheck response.
+Non-passing hosts excluded; reason and output captured.
+08  Execute approved patch
+Dispatch Satellite, SCCM or IndusInd-owned Controller script with exact host scope.
+Operation ID, per-host state, versions, status and raw evidence stored.
+09  Postcheck or failure
+Compare expected vs installed patch and required service/reboot checks; update Helix work information.
+Failures go to manual rollback handover and owner notification.
+10  Reassess vulnerability
+Consume a subsequent authoritative Tenable/Squad1 assessment and verify security closure evidence.
+Still open or reopened findings stay under triage; no assumed rescan API.
+11  Close and synchronize
+Application team completes permitted ticket closure; update approved CMDB patch metadata and reports.
+Ticket/CMDB sync errors can retry without rerunning patch.
+12  Publish governance
+Produce eight reports and immutable finding/change/execution/closure chronology.
+Every important actor, timestamp, decision and evidence reference remains traceable.
+Business workflow - consolidated diagram
+Original end-to-end process illustration, retained to preserve the client journey. The written controls in Sections 4-8 clarify the executor routes, security verification and manual rollback handover.
+Reading note: for the agreed To-Be design, Linux uses Satellite, Windows uses SCCM, Database/Middleware/AIX scripts use Ansible Controller, and rollback is a manual engineering handover.
+7. Functional requirements and operating processes
+The following functional requirements translate the bank's current practices into the specific VPM360 behavior needed for the agreed To-Be process. As-Is steps describe the existing client runbooks; their commands remain the responsibility of the teams that own the execution tools.
+7.1 Cross-module functional requirements
+ID
+Functional requirement
+Acceptance evidence
+INT-01
+Provide separate connector profiles per source and environment; record health, test time and active/suspended status.
+Connector test succeeds before publish; inactive source never imported.
+INT-02
+Secure authentication details in approved secret storage and display no raw token or password in the user portal.
+No secret appears in API audit, logs, report or UI.
+IMP-01
+Import scheduled and on-demand Tenable/Squad1 datasets without losing existing valid records.
+Pages/checkpoints and errors retained; later retry resumes safely.
+IMP-02
+Preserve a raw source record and normalized version with source identity and assessment/modified timestamps.
+User can trace the reported finding to imported evidence.
+NOR-01
+Exclude informational Tenable severity records from the actionable vulnerability view.
+Test informational and actionable samples.
+NOR-02
+Use Tenable CVSS V3 Base Score, with V4 Base Score fallback if V3 is absent.
+Known score cases yield expected normalized value.
+NOR-03
+Retain First Discovered, Last Observed and all associated CVE IDs distinctly.
+No CVE lost and no observed date falsely treated as closure.
+NOR-04
+Support configurable field mapping, source filtering and canonical output definitions.
+Mappings are versioned and tested against sample payloads.
+SQ-01
+Maintain each Squad1 VulnerabilityNo, status, owner, exception ID/end date and completion/reopen updates.
+Changed records appear without duplicate lifecycle objects.
+COR-01
+Correlate the finding IP to one active eligible BMC_ComputerSystem server CI.
+One match eligible; zero/multiple/inactive matches held.
+COR-02
+Preserve server OS/DB/Middleware inventory fields as provided, including overlapping Prod/Non Prod.
+Freeze output contains selected fields and original source values.
+COR-03
+Publish only unmatched IP addresses in the CMDB Delta Report.
+Delta export has one column: IP Address.
+OWN-01
+Use IndusInd-provided deterministic unique asset-owner resolution.
+Ambiguous owner is blocked from unattended ticket routing.
+FRZ-01
+Capture an approved inventory freeze with time, scope and owner and prohibit silent target changes.
+Frozen host IDs cannot change without versioned reapproval.
+RISK-01
+Use configured severity, patch-cycle target date, age and agreed SLA policies.
+Report distinguishes overdue, open, exception and completed.
+CHG-01
+Create one change per vulnerability ID using configured Helix mapping or link an approved existing change.
+Correct change reference stored with no accidental duplicate.
+CHG-02
+Apply Standard for non-production and Normal for production, with applicable approval/downtime rules.
+Test one case per environment and policy.
+CHG-03
+Read authoritative change decision, approver, cancellation and approved time window.
+Unapproved/expired/cancelled change prevents dispatch.
+CHG-04
+Track ticket status, worklogs, actor history and synchronized implementation/closure state.
+Timestamped before/after event evidence is retained.
+CHG-05
+Automatically notify the asset owner about assigned failure/manual rollback handover using an agreed channel.
+Notification reference, recipient and time recorded.
+TMP-01
+Display the 13 reusable job template fields with the specified fixed/configurable behavior.
+Field values match CMDB, Helix, patch catalog and executor.
+TMP-02
+Provide approved eligible host multi-selection and preserve exact resolved executor identities.
+Host selection exactly matches frozen plan.
+TMP-03
+Load original Helix schedule; allow only policy-approved effective downtime changes with actor/reason.
+Outside-window execution blocked without approval.
+EXE-01
+Use Satellite for RHEL, SCCM for Windows and Controller for DB/MW/AIX approved client scripts.
+Route and selected script/template version are correct.
+EXE-02
+Run a non-destructive precheck and dispatch only the passing host scope.
+Failed readiness cannot launch patch.
+EXE-03
+Store native operation ID, per-host state, timestamps, raw output and normalized result.
+Partial batch results identifiable per host.
+EXE-04
+On an unknown submission outcome, reconcile the existing provider job before retrying.
+Lost API response cannot produce duplicate patch.
+EXE-05
+Verify required installed version/update, mandatory health checks and reboot completion.
+Successful API call alone is not PATCH_VALIDATED.
+EXE-06
+Stop next production host/dependent work on critical failure according to approved policy.
+Manual recovery owner and failure reason visible.
+RBK-01
+Record and notify a manual rollback handover; VPM360 does not execute rollback itself.
+Worklog/owner notification and rollback outcomes saved.
+VER-01
+Use subsequent authoritative assessment evidence to confirm remediation.
+Finding cannot become security-closed from patch status alone.
+CLO-01
+Track application-team closure approval separately from patch validation.
+Closure actor/time and decision recorded.
+CMU-01
+Write approved OS version and last patched timestamp to CMDB at agreed closure stage.
+Accepted write and reconciliation reference retained.
+RPT-01
+Publish the eight defined reports using exact agreed field schemas and filters.
+Reconciles with source data and role access.
+GOV-01
+Record the 73 governance fields across the full vulnerability/patch lifecycle.
+All mandatory milestone/owner timestamps and outputs present.
+ACC-01
+Apply the five-role report access matrix and separate action entitlements.
+Negative access tests prevent unauthorized viewing/actions.
+DEP-01
+Use separate UAT and Production connectors, credentials and data.
+No production execution in UAT and vice versa.
+OPS-01
+Log integration failures, retry permitted updates and preserve evidence without re-running successful patches.
+Lifecycle sync failure is independent of executor state.
+7.2 Linux / Red Hat Enterprise Linux (Satellite)
+Current process (As-Is): the existing playbook takes server configuration and certificate backups, captures file systems and process state, performs a pre-patching sanity reboot when permitted, checks reconnection, runs package updates and reboots again. The standard playbook upgrades available packages; its other approved variant excludes Java. It finishes with host, release, uptime, file-system and time-sync checks. Some tasks suppress errors, so a complete playbook invocation is not proof that every mandatory check passed.
+Current SOP stage
+Proposed VPM360 behavior
+Evidence / control
+Choose server/runbook
+Read exact Satellite hosts and approved template IDs.
+CMDB server CI -> Satellite host ID; plan hash.
+Collect general/certificate backups
+Run bank-approved precheck/backup template as designed.
+Backup status, location and evidence ID.
+Process sanity and pre-reboot
+Apply a separately approved non-mutating precheck gate.
+Process check and readiness PASS/FAIL per host.
+Sanity reboot, package update
+Invoke selected Satellite PATCH template only at approved time.
+Job Invocation ID, package/errata evidence and timestamps.
+Java inclusion/exclusion
+Select the explicitly approved standard or Java-excluding template.
+Recorded variant and version.
+Post-reboot, OS/time checks
+Collect Satellite per-host output and verify services, OS/version, reboot and agreed checks.
+POSTCHECK result with raw output reference.
+LINUX READINESS:  The shared combined YAML is not a standalone read-only precheck. IndusInd must provide or approve an independent precheck template, expected results and host-level validation before unattended patching.
+7.3 Windows / SCCM 2509
+Current process (As-Is): the SCCM team maintains patch content through ADRs and organizes deployment collections by Windows version/targets. The operator sets a maintenance window, clients evaluate policy, and Deployment Status shows Compliant, In Progress, Error and related outcomes. The current 15-minute client polling expectation must be verified against the installed site configuration.
+Current activity
+To-Be orchestration
+Evidence / rule
+Select OS version and server list
+Read approved OS folder/source collection or IndusInd AD API, then multi-select hosts.
+Exact hostname/ResourceID and server CI.
+Check ADR and target mapping
+Resolve approved ADR, target collection and assignment/deployment.
+Mapped CollectionID/AssignmentID; no folder/collection confusion.
+Schedule change and client policy
+Use approved Helix/window and platform schedule; preserve SCCM enforcement.
+Effective StartTime/Deadline/maintenance window.
+Check client activity
+Read activity at execution time and skip non-active/uncertain machines.
+Raw activity, time, pass/skip decision.
+Deploy through SCCM
+Apply only the approved, tested SCCM collection/update interface.
+Membership changes, provider response and assignment ID.
+Read compliance
+Poll per-host deployment details and required reboot/health evidence.
+Success/In Progress/Error/Unknown; new/already/not applicable where available.
+SCCM DEPENDENCY:  Access needs to be share before deployment. Precheck templates not shared, as last discussed, whatever output log get through precheck & post check api’s we will maintain those.
+7.4 Oracle database patching
+Current process (As-Is): Oracle patch content is downloaded and staged by the DBA team. UAT installation and application validation precede the production maintenance window. The application team raises or approves the change, the DBA checks authorized approval and assigned work order, then takes backups and applies the patch using OPatch/SQL*Plus and the prescribed validation steps.
+Step
+Client-owned Oracle script (To-Be)
+Output VPM360 records
+1
+Verify the installed OPatch utility level
+Current utility version and prerequisite status
+2
+Back up OPatch directory if a refresh is needed
+Backup path and completion
+3
+Refresh OPatch only where required
+Resulting OPatch version
+4
+Capture pre-patch Oracle inventory/baseline
+Existing patch IDs and Oracle Home
+5
+Take database and rollback preparation backups / applicable VM snapshot
+Backup and snapshot references
+6
+Stop database and handle listener as approved
+DB and listener state
+7
+Apply approved Oracle patch through unattended supported method
+Patch ID, OPatch log, installer outcome
+8
+Restart database/listener
+Start/health status
+9
+Run datapatch and capture SQL result
+Datapatch and SQL patch status
+10
+Verify DBA_REGISTRY_SQLPATCH, OPatch inventory and required health
+Expected patch present and mandatory checks pass
+VPM360 will select the host, environment, approved patch and window, then invoke one complete, versioned Oracle script per host through Automation Controller. The script owns all technical steps and sends structured step/final output. UAT functional signoff, application dependencies, backups and work-order checks remain mandatory where the client SOP requires them.
+7.5 Microsoft SQL Server patching
+Current process (As-Is): the SQL patching team prepares approved updates, takes database and configuration backups, coordinates application signoff/change approval, installs updates for selected instances, handles necessary reboots and verifies installed KB/build and database/service health.
+Step
+Client-owned SQL script (To-Be)
+Output VPM360 records
+1
+Back up selected SQL databases and check backup output
+Backup ID/files and status
+2
+Back up logins, credentials, linked servers and SQL Agent configuration
+Export location and result
+3
+Back up SSRS encryption key where applicable
+Applicable flag and artifact
+4
+Create required system/resource DB file copies
+Backup artifacts and verification
+5
+Obtain VM snapshot where required
+Snapshot reference or not applicable
+6
+Complete approved pre-patch Windows reboot/readiness
+Reboot/host/SQL status
+7
+Perform unattended SQL patch installation on approved instances
+Installer exit code, patch ID and log
+8
+Validate installation completion and interpret logs
+Installer outcome and failure details
+9
+Complete required post-install reboot and reconnect
+Reboot status, reachability
+10
+Verify SQL ProductVersion/KB and database/service health
+Expected build, database status and final marker
+The application template passes only approved host, change and patch information. IndusInd owns the supported Windows execution wrapper and Controller 4.2 module compatibility. The platform cannot assume that a PowerShell script or `ansible.windows.win_command` is accepted by Controller without validating the installed schema and execution environment.
+7.6 Middleware - WebSphere, IHS/Plugins and JBoss
+Current process (As-Is): the middleware team stages OEM fix packs and performs product-specific backup, service and installation activities. The source SOPs cover WebSphere Application Server, IBM HTTP Server with Plugins and JBoss. These commands do not become generic patch-install calls; each product retains an approved script and health-validation rule.
+Product
+Current technical sequence
+To-Be VPM360 contract
+WebSphere
+Stage WAS/SDK fix-pack, create backupConfig/profile/Installation Manager backups, extract and validate repository, list offerings, stop services, apply via imcl, verify version and restart/health.
+Invoke complete approved WAS script; capture stage, backup, offering/package ID, imcl result, installed version, service health and logs.
+IBM HTTP Server & Plugins
+Stage IHS/SDK fixes, back up, validate Installation Manager repositories, stop httpd, apply IHS and plugin packages, verify offering versions, restart and review process/logs.
+Invoke approved IHS+Plugins script; capture both package outcomes, access/error log health and service status.
+JBoss EAP
+Stage patch binaries, check service user/process, stop service, back up existing JBOSS_HOME, apply fix pack, restart and verify version.
+Invoke version-appropriate approved JBoss script; capture installed version, service health and step-by-step result.
+The reusable middleware template displays Middleware Type, eligible hosts, environment, Helix change and downtime, approved fix-pack, execution strategy, script version and schedule. Mixed environments and incompatible product profiles require separate runs. The default model is one complete client script per host; a central runner is permitted only if IndusInd returns an unambiguous result for each individual host.
+7.7 AIX Service Package upgrade
+Current process (As-Is): the AIX SOP records general logs, an alternate-disk clone, a sanity reboot, emergency fixes and broken-package checks, package commitment, service-package upgrade, OS-level verification, final reboot and pre/post comparison. L1 coordinates details, L2 performs the work and L3 handles complex failure or manual rollback.
+Step
+Client AIX activity to be covered by approved script
+Evidence required
+1
+Capture host/operating-system baseline and general logs
+Precheck log reference
+2
+Run and verify alt-disk clone as approved
+Target disk/clone completion
+3
+Complete approved sanity reboot and host-return check
+Reboot evidence
+4
+Check efix status and apply approved efix handling
+emgr evidence
+5
+Check broken packages and commit state
+lppchk / installp evidence
+6
+Apply approved AIX Service Package using unattended equivalent
+Installer output and service package level
+7
+Verify oslevel, required services and packages
+Observed versus expected oslevel; health
+8
+Complete final reboot, compare pre/post logs and release server
+Final evidence and handover
+The supplied AIX SOP includes interactive SMIT screens and a background alternate-disk clone. IndusInd must provide an approved unattended implementation and completion criteria; an Automation Controller API cannot turn these manual actions into safe automation on its own. In case of failure, VPM360 records and hands over the manual recovery.
+7.8 Security verification, closure and lifecycle state
+State / outcome
+Meaning
+Required next action
+IMPORTED / NORMALIZED
+Valid source finding captured with raw reference.
+Apply correlation and classification.
+MATCHED / FROZEN
+One active eligible server, owner, patch scope and plan recorded.
+Create/link change and validate approval.
+WAITING_APPROVAL / WINDOW
+Change is not yet authorized to execute.
+Continue polling; no patch dispatch.
+PRECHECK_FAILED
+Mandatory readiness condition failed.
+Hold host, log reason and notify responsible team.
+RUNNING / OUTCOME_UNKNOWN
+Patch operation is active or submission result needs reconciliation.
+Check provider operation before retry.
+PATCH_VALIDATED
+Expected technical patch and mandatory checks passed.
+Request/await fresh security assessment; Helix update.
+AWAITING_SOURCE_CONFIRMATION
+Patch passed but fresh authoritative finding result is pending.
+Keep security finding open until confirmed.
+REMEDIATION_CONFIRMED
+Fresh source evidence confirms the security weakness is resolved.
+Follow agreed application/Helix closure policy.
+REJECTED / EXCEPTION / ROLLBACK
+Work blocked, risk accepted temporarily, or engineering performed recovery.
+Keep reason/owner/expiry and do not mark security fixed by default.
+CLOSED / REOPENED
+Authorized ticket closure recorded; later finding may reopen.
+Synchronize CMDB/reporting and preserve prior history.
+8. Technical design and API integration contracts
+The technical design maps the existing VPM360 application to IndusInd's enterprise services. A single controlled workflow determines the target, approval, script/template, execution status, validation and record synchronization. All production-specific secrets, endpoint permissions and exact forms are configured only after the client authorizes them.
+8.1 HLD - application architecture
+Client users reach the VPM360 portal. The application applies role-based access and business policy, while background workers import findings, correlate assets, read approval, dispatch approved execution operations and reconcile responses. PostgreSQL retains workflow records, immutable target snapshots, evidence references and synchronization status. Connected systems retain their own responsibilities: scanners assess; CMDB supplies eligible CIs; Helix authorizes changes; Satellite, SCCM and Automation Controller execute patches.
+Logical component
+Role in the high-level design
+Web portal
+Module pages, reports links, approved user actions and status visualization.
+Application API and shared business services
+Connection configuration, import, normalization, CMDB matching, risk/SLA, approval gates and job planning.
+Scheduler and workers
+Source import, change refresh, planned execution, provider status polling, reconciliation and sync retries.
+PostgreSQL + evidence store
+Source/canonical records, audit, approved scope, job status, raw execution evidence and governance records.
+Secret and trust service
+Credential references, short-lived tokens, CA trust and environment-specific connector settings.
+External adapters
+Tenable, Squad1, CMDB, Helix, Satellite, SCCM and Automation Controller integration boundaries.
+Power BI
+Controlled consumption of report-ready data; does not become execution authority.
+8.2 LLD - state, scheduling and safe dispatch
+A platform operation has a unique request/run reference. The system freezes approved host and patch scope and verifies approval, cancellation and window before any mutating execution. It saves an intent and stable correlation key before calling the execution provider. When the provider returns a native operation ID, VPM360 persists it and polls native status. If the response is lost, the system reconciles the provider-side operation before deciding whether another request is safe.
+Technical object
+Minimum persisted attributes
+Integration profiles
+Source family, base URL, route/version mappings, environment, CA configuration and secret reference.
+Import run/checkpoint
+Connector, source query, cursor, start/end, status, raw records, source watermark and errors.
+Normalized finding
+Source and source ID, IP/CI, severity, CVE list, source state, remediation type, assessment dates and evidence.
+CMDB correlation
+Dataset/class/instance, IP endpoint, matched server, match reason, owner and attributes snapshot.
+Inventory target snapshot
+Frozen server CI and native executor host IDs, environment, selected patch/content, policy version and scope hash.
+Change/approval snapshot
+Helix entry ID, change number, current decision, approver, approved window, overrides and read timestamp.
+Patch run/host execution
+Run, host, phase, template/script version, provider ID, native state, requested/actual times and validation evidence.
+Audit/outbox
+Actor, action, before/after, timestamp, evidence pointer, destination sync attempt and independent retry state.
+8.3 Source normalization, data lineage and duplicate prevention
+Retain both source records and normalized records. Use the source's stable finding identity plus the agreed asset/service scope rather than merging all findings solely by IP or CVE. Import pagination and overlapping date windows must permit idempotent updates and survive partial failures. Empty imports, skipped pages or API errors are not proof that findings have been fixed. Source-to-field lineage remains queryable for every reported metric.
+8.4 Authentication and authorization boundary
+The bank provides approved API identities and permission scope for each environment. VPM360 will not transmit target-server administrative passwords in browser requests or patch-job parameters. Automation Controller owns its SSH/WinRM machine credentials. Tokens are stored through approved secret references, protected from UI/log exposure and rotated under IndusInd policy. All execution calls use only configured routes and approved template/script inputs.
+8.5 API request/response examples
+The examples below form part of the contract specification. Bank-supplied QA values remain test data. Placeholder paths and response keys must be confirmed on each installed client system before production use.
+8.5.1 CMDB IP lookup and relationship resolution
+GET {CMDB_BASE}/api/cmdb/v1.0/instances/{datasetId}/BMC.CORE/BMC_IPEndpoint
+  ?qualification='Address'="<source_ip>"
+  &attributes=InstanceId,Name,Address,SystemName
+Authorization: AR-JWT <token>
+GET {CMDB_BASE}/api/cmdb/v1.0/graphwalk
+  ?graph_walk_query=<URL-encoded approved graph query>
+{
+  "limit": 100,
+  "num_levels_to_traverse": 2,
+  "dataset_id": "<CLIENT_DATASET>",
+  "start_node": {
+    "class_name_key": {
+      "namespace": "BMC.CORE",
+      "name": "BMC_IPEndpoint"
+    },
+    "instance_id": "<IP_INSTANCE_ID>"
+  },
+  "relationship_selectors_filters": [
+    {
+      "class_name_key": {
+        "namespace": "BMC.CORE",
+        "name": "BMC_BaseRelationship"
+      },
+      "direction_to_walk": "BOTH"
+    }
+  ]
+}
+Graph request object is a proposed shape; relationship classes and allowed traversal must be confirmed by IndusInd CMDB team.
+8.5.2 Helix token and change creation
+POST https://servicedeskindusind-qa-restapi.onbmc.com/api/jwt/login
+Content-Type: application/x-www-form-urlencoded
+username=<service_account>&password=<URL-encoded_secret>
+POST https://servicedeskindusind-qa-restapi.onbmc.com/api/arsys/v1/entry/CHG:ChangeInterface_Create
+Authorization: AR-JWT <token>
+Content-Type: application/json
+The create endpoint provided with a trailing `?=` and quote artifact is normalized here to the route without that unexplained suffix. If the client requires a query parameter, the Helix team must confirm its name and supported value. The supplied 19-field example is reproduced in Appendix D.
+8.5.3 Red Hat Satellite static host selection and invocation
+POST {SATELLITE_BASE}/api/job_invocations
+Content-Type: application/json
+Accept: application/json;version=2
+{
+  "job_invocation": {
+    "job_template_id": "<PRECHECK_OR_PATCH_TEMPLATE_ID>",
+    "search_query": "name ^ (server01.company.com,server02.company.com)",
+    "targeting_type": "static_query"
+  }
+}
+A successful creation returns a Job Invocation ID. For each host, VPM360 uses that invocation ID and the exact Satellite Host ID to retrieve the status and output. When the platform owns the schedule, it sends this request only when the approved window opens. A Satellite-side scheduling.start_at field is used only if IndusInd elects Satellite as the single scheduler and validates its time-zone behavior.
+8.5.4 Automation Controller approved client script request
+POST {CONTROLLER_BASE}/api/v2/inventories/{inventory_id}/ad_hoc_commands/
+Authorization: Bearer <service_token>
+Content-Type: application/json
+{
+  "job_type": "run",
+  "credential": "<client_credential_id>",
+  "module_name": "<client_approved_module>",
+  "module_args": "<approved_script_path + validated_parameters>",
+  "limit": "<exact_selected_hostname>",
+  "forks": 1,
+  "verbosity": 0
+}
+The request is a contract template, not permission for users to type arbitrary commands. The module and credential ID must be accepted by Controller 4.2. The client script returns one structured PATCH_STEP_RESULT per mandatory step and a PATCH_RUN_RESULT with overall success/failure, target version and log path. Background execution or reboot requires a durable result mechanism; an initial zero exit code alone does not establish completion.
+PATCH_STEP_RESULT|{"run_id":"RUN-001","host":"HOST-01","step_code":"BACKUP","status":"SUCCESS","data":{"evidence_ref":"<id>"}}
+PATCH_RUN_RESULT|{"run_id":"RUN-001","host":"HOST-01","overall_status":"SUCCESS","installed_version":"<version>","health_status":"PASS","log_path":"<approved_path>"}
+8.5.5 SCCM adapter scope and returned evidence
+The SCCM interface is not a confirmed single REST patch-deployment endpoint. The following data object illustrates the required contract between VPM360 and any IndusInd-approved SCCM adapter/wrapper. It is not a Microsoft AdminService payload.
+{
+  "run_id": "RUN-WIN-001",
+  "change_number": "<approved_change>",
+  "mode": "<agreed_SCCM_mode>",
+  "targets": [
+    {
+      "server_ci_id": "<CMDB_INSTANCE>",
+      "resource_id": "<RESOURCE_ID>",
+      "hostname": "<HOSTNAME>"
+    }
+  ],
+  "target_collection_id": "<COLLECTION_ID>",
+  "assignment_id": "<ASSIGNMENT_ID>",
+  "window_start": "<approved_iso_timestamp>",
+  "window_end": "<approved_iso_timestamp>",
+  "reboot_policy": "CLIENT_APPROVED"
+}
+Native status will be reconciled by AssignmentID and ResourceID, preserving raw StatusType, compliance, StatusTime, ErrorCode and reboot details. The user-visible labels depend on the site-confirmed mapping. In-progress work at the end of the window remains in progress or review; it must not be relabelled as a failure without evidence.
+8.6 Technical validation, error handling and reconciliation
+Control
+Technical requirement
+Connection errors
+Record HTTP/provider error and request reference. Retry only safe read/idempotent operations per source rate limits.
+Duplicate source records
+Use stable source key, raw record and source watermark; update existing lifecycle rather than multiplying findings.
+Ambiguous change creation
+Lookup by operation/source reference before another POST; do not create duplicate Helix tickets.
+Unknown job submission
+Reconcile native provider operation before any rerun; a monitoring timeout is not proof of failure.
+Partial multi-host execution
+Keep one final technical outcome per host and phase; overall status may be partial.
+SOP script output
+Require mandatory structured markers, target version, health and reboot evidence.
+Security closure
+Require a later authoritative source assessment showing resolution, not just tool success or `UATFixed`.
+Sync failure
+Retain pending Helix/CMDB write in independent retry queue; no patch replay as a side effect.
+Audit
+Persist request, actor, values before/after, native operation ID, timestamps and evidence references.
+Secrets and logs
+Mask credentials and sensitive parameters; use approved access and evidence-retention policy.
+8.7 HLD - connected systems and responsibilities
+VPM360 coordinates. IndusInd retains security assessment, CMDB, change authorization, patching tools and technical command ownership.
+8.8 LLD - guarded execution and separate lifecycle updates
+Each mutating call is guarded by approved scope, current change decision, window and readiness. Technical and security verification remain separate.
+9. Reporting, analytics and governance
+The eight Power BI outputs use the exact client-provided column labels reproduced below. The output must remain clear to authorized teams, with complete lineage to Tenable/Squad1, CMDB, Helix and execution records. A source label from an earlier report layout is not treated as authoritative when it conflicts with the governing business rules.
+Report
+Business purpose
+1. Vulnerability Finding Report (with Normalization)
+Normalized server vulnerability findings with ownership, risk and lifecycle context.
+2. CMDB CI Delta Report
+One-column IP list of findings with no eligible server CI.
+3. Inventory Freeze Report
+Date-stamped OS, database and middleware server baseline for the approved patch cycle.
+4. Vulnerability Aging & SLA Report
+Active/overdue finding visibility, planned completion, exceptions and responsible owner.
+5. Remediation Status Report
+UAT/Production remediation progress, exceptions, reopen and closure.
+6. Patch Execution Report
+Host-level patch execution, technical status, timestamps, versions and evidence.
+7. Failed Patch Deployment / Exception Report
+Patch failures and source exceptions requiring follow-up.
+8. Post-Patch Verification & Closure Report
+Technical validation, subsequent security assessment and approved closure.
+9.1 Data-source precedence and report definition controls
+Business field / rule
+Authoritative V.1 treatment
+Tenable CVSS score
+Tenable CVSS V3 Base Score, with V4 Base Score fallback. Any report logic mentioning V2 fallback is overridden pending client signoff.
+Squad1 Exception_ID / Exception_END_Date
+From Squad1 source for vulnerability exception tracking; Helix may hold change decisions separately.
+Squad1 Pending_With_Name / STATUS
+Preserve source pending owner and lifecycle; distinguish from Helix change approval/status values.
+VulnerabilityNo
+Preserve Squad1 source VulnerabilityNo; a distinct internal platform ID may also be stored if needed.
+VulnID
+Keep the existing reporting field but confirm its derivation before use as the uniqueness key.
+Tenable Rescan Status
+Use the next available authoritative assessment result; no assumed VPM360 scan-trigger interface.
+Controller Command ID
+Retain the report header. Its logical value is the applicable native executor operation reference; mapping varies by route.
+Delta report
+IP Address only, as explicitly requested by IndusInd.
+CMDB Update status
+Report authorized accepted writes and reconciliation; do not infer success from HTTP submission alone.
+9.2 Exact Power BI report field dictionaries
+All 201 column positions are included below. The Field column preserves supplied spelling and order. The Source / rule columns describe the proposed use for IndusInd approval; source contradictions are handled under Section 9.1.
+9.2.1 1. Vulnerability Finding Report (with Normalization)
+Publish the normalized vulnerability finding dataset after Tenable ingestion, server-CI correlation and lifecycle enrichment.
+Field (exact label)
+Source / lineage
+Purpose and business rule
+01  VulnerabilityNo
+Squad1 ID / VPM360 record key
+Internal unique vulnerability record number.
+02  VulnID
+Derived; identity rule pending validation
+Normalized vulnerability identifier built from plugin/IP/port logic.
+03  PluginID
+Tenable Data
+Tenable plugin ID.
+04  IP Address
+Tenable Data
+Affected server IP from Tenable scan result.
+05  HostName
+CMDB
+Server hostname correlated from Helix CMDB using IP address.
+06  Vulnerability_Name
+Tenable Data
+Tenable plugin name / finding name.
+07  Description
+Tenable Data
+Tenable vulnerability description.
+08  Protocol
+Tenable Data
+Protocol reported by Tenable.
+09  Port
+Tenable Data
+Affected port.
+10  Risk_Rating
+Tenable Data
+Tenable severity / normalized risk rating.
+11  CVSS_Score
+Tenable normalized V3 -> V4 / source policy
+Use approved V3 Base Score; V4 fallback if V3 missing. Preserve original source score.
+12  CVE_ID
+Tenable Data
+All CVE IDs associated with the finding.
+13  STATUS
+Squad1 finding state; Helix change state separate
+Lifecycle status driven by Helix / remediation workflow.
+14  Recommendation
+Tenable Data
+Steps to remediation / solution text.
+15  Solution_Category
+Tenable Data
+Tenable plugin family / solution category.
+16  Plugin Output
+Tenable Data
+Raw plugin output useful for installed/expected package or version evidence.
+17  Vulnerability_Holder
+CMDB
+Server/application owner mapped from CMDB; exact client attribute to be confirmed.
+18  Vulnerability_Holder_Department
+CMDB
+Owner department from CMDB.
+19  Vulnerability_Holder_Location
+CMDB
+Owner/server location from CMDB.
+20  BU_Head
+CMDB
+Business / IT group head from CMDB mapping.
+21  IBL Spoc
+CMDB approved owner mapping
+IBL SPOC from CMDB.
+22  Application_Mapping
+CMDB
+Application mapped to the server CI.
+23  Environment
+CMDB
+Server environment from CMDB.
+24  ApplicationName
+CMDB
+Application name related to the server.
+25  Application_Owner
+CMDB
+Application owner from CMDB.
+26  AssetStatus
+CMDB
+Current server asset/CI status.
+27  Asset_Type_Name
+CMDB
+Server asset type / class.
+28  Operating_System
+CMDB
+Operating system of the server.
+29  FirstPublishedDate
+Tenable Data
+First discovered / first published date used for aging.
+30  Ageing
+Derived
+Days since FirstPublishedDate while the finding remains active.
+31  PlannedRemediationDate
+Helix
+Planned remediation / due date when available.
+32  Compliance
+Helix
+SLA compliance / non-compliance outcome based on configured SLA.
+33  UATFixed
+Squad1 (source lifecycle) / agreed verification
+Whether fixed in UAT.
+34  ProductionFixed
+Squad1 (source lifecycle) / agreed verification
+Whether fixed in Production.
+35  Pending_With_Name
+Squad1 (source lifecycle) / agreed verification
+Current pending owner/team/person.
+36  Exception_ID
+Squad1 (source lifecycle) / agreed verification
+Exception ID from Squad1; do not replace with change decision ID.
+37  Exception_END_Date
+Squad1 (source lifecycle) / agreed verification
+Exception expiry/end date from Squad1.
+38  ReopenDate
+Squad1 (source lifecycle) / agreed verification
+Date finding was reopened, when applicable.
+39  VulnerabilityCompletionDate
+Squad1 (source lifecycle) / agreed verification
+Date vulnerability is confirmed completed/closed.
+40  Closed_Comment
+Helix
+Closure comment / evidence summary.
+41  Exploit
+Tenable Data
+Tenable exploit indicator.
+42  Assessment_Name
+CMDB
+Assessment / server inventory grouping used for reporting if configured.
+9.2.2 2. CMDB CI Delta Report
+Publish only the IP addresses for which server correlation did not find a CI in BMC Helix CMDB, for CMDB team action.
+Field (exact label)
+Source / lineage
+Purpose and business rule
+01  IP Address
+Tenable Data
+IP address for which no server CI was found in Helix CMDB.
+9.2.3 3. Inventory Freeze Report
+Create a point-in-time server inventory baseline for the patching cycle across OS, DB and Middleware scopes.
+Field (exact label)
+Source / lineage
+Purpose and business rule
+01  Freeze Date
+Manual
+Point-in-time date on which the inventory snapshot is frozen for the patching cycle.
+02  Inventory Type
+Manual
+OS / DB / MW inventory classification.
+03  CI Name
+CMDB
+Server CI name.
+04  HostName
+CMDB
+Server hostname / DNS host name.
+05  IP Address
+CMDB
+Server IP address.
+06  Application Name
+CMDB
+Application mapped to the server.
+07  IBL_SPOC
+CMDB approved owner mapping
+IBL SPOC.
+08  IT Application Owner
+CMDB
+Application owner.
+09  System Environment
+CMDB
+Environment from CMDB.
+10  Prod/Non Prod
+Derived
+Derived from System Environment for reporting.
+11  is Virtual
+CMDB
+Virtual / physical indicator.
+12  Internet Facing
+CMDB
+Internet-facing indicator.
+13  Virtual System Type
+CMDB
+VMware/KVM/other virtualization type.
+14  IBL_Asset_Type
+CMDB
+Asset type.
+15  IBL_Server_Type
+CMDB
+Server type.
+16  IBL_Operating_System
+CMDB
+Operating system detail.
+17  OS Type
+CMDB
+Windows/Linux OS family.
+18  IBL_DB_Type
+CMDB
+Database technology where Inventory Type=DB.
+19  IBL_DB_Version
+CMDB
+Database version where Inventory Type=DB.
+20  Technology
+MW Inventory
+Middleware technology where Inventory Type=MW.
+21  Installed Version
+MW Inventory
+Current middleware installed version.
+22  Recommended update version
+MW Inventory
+OEM-recommended middleware target version.
+23  End of Support Date
+CMDB
+Support end date when maintained in CMDB.
+24  IBL_RiskClassification__
+CMDB
+Risk classification.
+25  Last Patched Date
+OS/DB/MW Inventory
+Last successful patch date from previous cycle/tracker.
+26  Aging (Days)
+Derived
+Days since last successful patch.
+27  Target Date
+OS/DB/MW Inventory
+Patch cycle target date.
+28  Request No / CR No
+Helix
+Associated SR/CR/Change request.
+29  Patching Status
+OS/DB/MW Inventory
+Current patching status at freeze time.
+30  Remarks
+Manual
+Patching team remarks / exception / decommission note.
+9.2.4 4. Vulnerability Aging & SLA Report
+Track vulnerability age, due dates, SLA position, exceptions and ownership for active server findings.
+Field (exact label)
+Source / lineage
+Purpose and business rule
+01  VulnerabilityNo
+Squad1 ID / VPM360 record key
+Internal vulnerability number.
+02  VulnID
+Derived; identity rule pending validation
+Normalized vulnerability ID.
+03  PluginID
+Tenable Data
+Tenable plugin ID.
+04  IP Address
+Tenable Data
+Affected server IP.
+05  HostName
+CMDB
+Correlated server hostname.
+06  ApplicationName
+CMDB
+Related application.
+07  Environment
+CMDB
+Server environment.
+08  STATUS
+Squad1 finding state; Helix change state separate
+Current remediation status.
+09  FirstPublishedDate
+Tenable Data
+First discovered / published date.
+10  Ageing (Days)
+Derived
+Current age of open vulnerability.
+11  Risk_Rating
+Tenable Data
+Severity / risk rating.
+12  CVSS_Score
+Tenable normalized V3 -> V4 / source policy
+Use approved V3 Base Score; V4 fallback if V3 missing. Preserve original source score.
+13  PlannedRemediationDate
+Helix
+SLA / planned remediation date.
+14  SLA Status
+Derived
+BREACHED / WITHIN SLA / CLOSED / NO SLA DATE.
+15  SLA Days Balance
+Derived
+Positive = days remaining; negative = days overdue.
+16  Compliance
+Helix
+Configured SLA compliance outcome.
+17  Vulnerability_Holder
+CMDB
+Current vulnerability / asset owner.
+18  Pending_With_Name
+Squad1 (source lifecycle) / agreed verification
+Current pending team/person.
+19  Exception_ID
+Squad1 (source lifecycle) / agreed verification
+Exception ID from Squad1; do not replace with change decision ID.
+20  Exception_END_Date
+Squad1 (source lifecycle) / agreed verification
+Exception expiry/end date from Squad1.
+21  Risk_Severity_changeDate
+Helix
+Date severity changed, if maintained.
+22  ReopenDate
+Squad1 (source lifecycle) / agreed verification
+Reopen date when applicable.
+23  VulnerabilityCompletionDate
+Squad1 (source lifecycle) / agreed verification
+Completion/closure date.
+9.2.5 5. Remediation Status Report
+Track vulnerability remediation progress from open finding through UAT/Production fix, exception or closure.
+Field (exact label)
+Source / lineage
+Purpose and business rule
+01  VulnerabilityNo
+Squad1 ID / VPM360 record key
+Internal vulnerability number.
+02  VulnID
+Derived; identity rule pending validation
+Normalized vulnerability ID.
+03  PluginID
+Tenable Data
+Plugin ID.
+04  IP Address
+Tenable Data
+Affected server IP.
+05  HostName
+CMDB
+Server hostname.
+06  Vulnerability_Name
+Tenable Data
+Finding name.
+07  Risk_Rating
+Tenable Data
+Severity.
+08  STATUS
+Squad1 finding state; Helix change state separate
+Current lifecycle status.
+09  Recommendation
+Tenable Data
+Remediation recommendation.
+10  Solution
+Tenable Data
+Steps to remediation / solution.
+11  PlannedRemediationDate
+Helix
+Planned completion date.
+12  Compliance
+Helix
+SLA compliance outcome.
+13  UATFixed
+Squad1 (source lifecycle) / agreed verification
+UAT remediation indicator.
+14  ProductionFixed
+Squad1 (source lifecycle) / agreed verification
+Production remediation indicator.
+15  Pending_With_Name
+Squad1 (source lifecycle) / agreed verification
+Current pending owner.
+16  ApplicationName
+CMDB
+Mapped application.
+17  Application_Owner
+CMDB
+Application owner.
+18  Environment
+CMDB
+Environment.
+19  TeamHead_Name
+CMDB
+Team head where maintained.
+20  BTGHead_Name
+CMDB
+BTG head where maintained.
+21  Exception_ID
+Squad1 (source lifecycle) / agreed verification
+Exception ID from Squad1; do not replace with change decision ID.
+22  Exception_END_Date
+Squad1 (source lifecycle) / agreed verification
+Exception expiry/end date from Squad1.
+23  VulnerabilityCompletionDate
+Squad1 (source lifecycle) / agreed verification
+Completion date after validation.
+24  Closed_Comment
+Helix
+Closure comments/evidence.
+25  ReopenDate
+Squad1 (source lifecycle) / agreed verification
+Reopen date.
+26  LastModifiedDate
+CMDB
+Latest correlated CI modification date.
+9.2.6 6. Patch Execution Report
+Provide host-level execution evidence for OS, DB and Middleware patch deployments executed through the reusable patching templates.
+Field (exact label)
+Source / lineage
+Purpose and business rule
+01  Patch Run ID
+Automation Output
+Unique patch execution/run identifier.
+02  Inventory Type
+Manual
+OS / DB / MW execution scope.
+03  HostName
+CMDB
+Target server hostname.
+04  IP Address
+CMDB
+Target server IP.
+05  ApplicationName
+CMDB
+Mapped application.
+06  IBL_SPOC
+CMDB approved owner mapping
+Application/server SPOC.
+07  IT Application Owner
+CMDB
+Application owner.
+08  Environment
+CMDB
+Target environment.
+09  Operating_System
+CMDB
+Target OS.
+10  DB Type
+CMDB
+Database technology where applicable.
+11  DB Version
+CMDB
+Database version where applicable.
+12  MW Technology
+MW Inventory
+Middleware technology where applicable.
+13  Pre-Patch Version
+OS/DB/MW Inventory
+Version/build before patching.
+14  Target Patch / Recommended Version
+Patch Inventory
+Selected patch, KB/RU/fix pack or target version.
+15  Request No / CR No
+Helix
+Approved change/service request.
+16  Scheduled Date
+Helix
+Scheduled execution date from approved window.
+17  Scheduled Time
+Helix
+Scheduled execution time.
+18  Patch Deployment Date
+Automation Output
+Actual patch deployment date.
+19  Actual Start
+Automation Output
+Execution start timestamp.
+20  Actual End
+Automation Output
+Execution completion timestamp.
+21  Duration (Minutes)
+Derived
+Calculated execution duration.
+22  Controller Command ID
+Executor operation ID (by route)
+Native executor operation/job reference for this host and run, mapped by source tool.
+23  Automation Script Version
+Automation Output
+Version/checksum of client automation script used.
+24  Execution Status
+Automation Output
+Overall patch execution status.
+25  Failed Step
+Automation Output
+Step/code that failed, if any.
+26  Error Message
+Automation Output
+Normalized execution error.
+27  Post-Patch Version
+Automation Output
+Version/build detected after patching.
+28  Reboot Status
+Automation Output
+Pre/post reboot result where applicable.
+29  Evidence / Log Path
+Automation Output
+Execution log/evidence location.
+30  Remarks
+Manual
+Patching team remarks.
+9.2.7 7. Failed_Patch Deployment Report
+Provide a combined operational view of patch failures and vulnerability exceptions requiring action or follow-up.
+Field (exact label)
+Source / lineage
+Purpose and business rule
+01  Record Type
+Manual
+PATCH_FAILURE or VULNERABILITY_EXCEPTION.
+02  Patch Run ID
+Automation Output
+Patch run ID for patch failures; blank for vulnerability-only exception rows.
+03  VulnerabilityNo
+Squad1 ID / VPM360 record key
+Vulnerability number when applicable.
+04  VulnID
+Derived; identity rule pending validation
+Normalized vulnerability ID.
+05  IP Address
+Tenable Data
+Affected/target server IP.
+06  HostName
+CMDB
+Server hostname.
+07  ApplicationName
+CMDB
+Mapped application.
+08  Environment
+CMDB
+Environment.
+09  Inventory Type / Technology
+OS/DB/MW Inventory
+OS / DB / MW / technology.
+10  Risk_Rating
+Tenable Data
+Risk severity for vulnerability exceptions.
+11  Current Status
+Helix
+Current lifecycle status.
+12  Failed Step
+Automation Output
+Failed automation/script step.
+13  Failure Reason / Error Message
+Automation Output
+Execution failure detail.
+14  Exception_ID
+Squad1 (source lifecycle) / agreed verification
+Exception ID from Squad1; do not replace with change decision ID.
+15  Exception_END_Date
+Squad1 (source lifecycle) / agreed verification
+Exception expiry/end date from Squad1.
+16  Pending_With_Name
+Squad1 (source lifecycle) / agreed verification
+Current pending team/person.
+17  Vulnerability_Holder / Owner
+CMDB
+Owner responsible for remediation.
+18  Request No / CR No
+Helix
+Associated change/service request.
+19  Retry Date
+Manual
+Planned retry date for failed patch execution.
+20  Resolution Status
+Manual
+Open / Retrying / Resolved / Exception.
+21  Closed_Comment
+Helix
+Closure / exception / resolution comment.
+22  LastModifiedDate
+CMDB
+Latest related CI modification date.
+9.2.8 8. Post-Patch Verification & Closure Report
+Demonstrate that the expected patch/version was applied, post-patch health checks passed, vulnerability was revalidated and closure evidence is available.
+Field (exact label)
+Source / lineage
+Purpose and business rule
+01  VulnerabilityNo
+Squad1 ID / VPM360 record key
+Internal vulnerability number.
+02  VulnID
+Derived; identity rule pending validation
+Normalized vulnerability ID.
+03  PluginID
+Tenable Data
+Plugin ID.
+04  CVE_ID
+Tenable Data
+Associated CVE(s).
+05  IP Address
+Tenable Data
+Affected server IP.
+06  HostName
+CMDB
+Server hostname.
+07  ApplicationName
+CMDB
+Mapped application.
+08  Environment
+CMDB
+Environment.
+09  Inventory Type / Technology
+OS/DB/MW Inventory
+OS / DB / MW technology scope.
+10  Pre-Patch Version
+OS/DB/MW Inventory
+Version before patching.
+11  Target Patch / Recommended Version
+Patch Inventory
+Expected target patch/version.
+12  Patch Deployment Date
+Automation Output
+Actual deployment date.
+13  Controller Command ID
+Executor operation ID (by route)
+Native executor operation/job reference for this host and run, mapped by source tool.
+14  Patch Execution Status
+Automation Output
+Patch execution result.
+15  Post-Patch Version
+Automation Output
+Version detected after patch.
+16  Service / DB Status
+Automation Output
+Post-patch service/database health result.
+17  Verification Result
+Automation Output
+PASS / FAIL result of post-patch checks.
+18  Tenable Rescan Status
+Subsequent authoritative assessment
+Status of the next authoritative scanner/source assessment; VPM360 does not initiate a scan by default.
+19  STATUS
+Squad1 finding state; Helix change state separate
+Final vulnerability lifecycle status.
+20  VulnerabilityCompletionDate
+Squad1 (source lifecycle) / agreed verification
+Completion date after successful validation.
+21  UATFixed
+Squad1 (source lifecycle) / agreed verification
+UAT fixed indicator.
+22  ProductionFixed
+Squad1 (source lifecycle) / agreed verification
+Production fixed indicator.
+23  Exception_ID
+Squad1 (source lifecycle) / agreed verification
+Exception ID from Squad1; do not replace with change decision ID.
+24  Exception_END_Date
+Squad1 (source lifecycle) / agreed verification
+Exception expiry/end date from Squad1.
+25  Closed_Comment
+Helix
+Final closure comments.
+26  Evidence / Log Path
+Automation Output
+Post-patch verification evidence/log location.
+27  Closure Readiness
+Derived
+CLOSED / READY TO CLOSE / EXCEPTION / PENDING.
+9.3 Governance lifecycle pack - required controls
+The governance pack is a chronological record, not simply a dashboard. Each milestone must record the responsible actor, actual event time, outcome and related evidence/reference. Where several findings belong to one remediation operation, the pack retains each finding and its traceable remediation group and ticket relationship, without collapsing distinct vulnerability identities.
+Capture both event time and record-update time where integration latency matters; preserve original source time zone and normalized display time.
+Record ticket creation, approval, rejection, cancellation, exception and closure decisions independently of technical execution results.
+Record precheck output ID, native patch execution ID, postcheck output ID and manual rollback evidence/reference.
+Include Asset Owner Name, the current responsible party, blocked-with owner, blocker reason and the start of the current stage.
+Measure elapsed time between significant stages, using the agreed workday/elapsed-hour convention before publishing SLAs.
+Retain later reopen and verification history rather than erasing the prior successfully completed actions.
+Governance field (exact)
+Lifecycle group
+Meaning / control
+01  Vulnerability No
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+02  Vuln ID
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+03  Remediation Group ID
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+04  IP Address
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+05  Host Name
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+06  Vulnerability Name
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+07  Risk Rating
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+08  Asset Owner Name
+Vulnerability & ownership
+Person/team/service identity responsible for the recorded action or pending stage.
+09  Environment
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+10  Patch Type
+Vulnerability & ownership
+Store the exact requested field value with source and event linkage.
+11  Vulnerability Finding Date & Time
+Finding
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+12  Finding Reference
+Finding
+Traceable evidence or provider operation reference; retain raw supporting output.
+13  Ticket No
+Ticket creation
+Store the exact requested field value with source and event linkage.
+14  Ticket Created Date & Time
+Ticket creation
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+15  Ticket Created By
+Ticket creation
+Person/team/service identity responsible for the recorded action or pending stage.
+16  Ticket Created On Behalf Of
+Ticket creation
+Store the exact requested field value with source and event linkage.
+17  Ticket Creation Result
+Ticket creation
+Controlled lifecycle/result value with supporting decision or technical evidence.
+18  Ticket Decision Status
+Approval / rejection / exception
+Controlled lifecycle/result value with supporting decision or technical evidence.
+19  Decision By
+Approval / rejection / exception
+Person/team/service identity responsible for the recorded action or pending stage.
+20  Decision Date & Time
+Approval / rejection / exception
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+21  Rejection Reason
+Approval / rejection / exception
+Store the exact requested field value with source and event linkage.
+22  Exception ID
+Approval / rejection / exception
+Approved exception record and validity; source exception fields are synchronized from Squad1.
+23  Exception Start Date & Time
+Approval / rejection / exception
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+24  Exception End Date & Time
+Approval / rejection / exception
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+25  Exception Reason
+Approval / rejection / exception
+Approved exception record and validity; source exception fields are synchronized from Squad1.
+26  Pre-check Start Date & Time
+Pre-check
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+27  Pre-check Completed Date & Time
+Pre-check
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+28  Pre-check Status
+Pre-check
+Controlled lifecycle/result value with supporting decision or technical evidence.
+29  Pre-check Output ID
+Pre-check
+Traceable evidence or provider operation reference; retain raw supporting output.
+30  Patch Scheduled Date & Time
+Patch deployment
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+31  Patch Start Date & Time
+Patch deployment
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+32  Patch End Date & Time
+Patch deployment
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+33  Patch Job / Execution ID
+Patch deployment
+Traceable evidence or provider operation reference; retain raw supporting output.
+34  Patching Tool
+Patch deployment
+Store the exact requested field value with source and event linkage.
+35  Patch Deployment Status
+Patch deployment
+Controlled lifecycle/result value with supporting decision or technical evidence.
+36  Patch Failure Reason
+Patch deployment
+Store the exact requested field value with source and event linkage.
+37  Rollback Required
+Rollback (manual handover)
+Manual engineering handover and reported recovery result; VPM360 does not launch rollback.
+38  Rollback Start Date & Time
+Rollback (manual handover)
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+39  Rollback Completed Date & Time
+Rollback (manual handover)
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+40  Rollback Status
+Rollback (manual handover)
+Manual engineering handover and reported recovery result; VPM360 does not launch rollback.
+41  Rollback Reference / Output ID
+Rollback (manual handover)
+Traceable evidence or provider operation reference; retain raw supporting output.
+42  Rollback Details Submitted Date & Time
+Rollback (manual handover)
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+43  Rollback Details Submitted By
+Rollback (manual handover)
+Person/team/service identity responsible for the recorded action or pending stage.
+44  Post-check Start Date & Time
+Post-check
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+45  Post-check Completed Date & Time
+Post-check
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+46  Post-check Status
+Post-check
+Controlled lifecycle/result value with supporting decision or technical evidence.
+47  Post-check Output ID
+Post-check
+Traceable evidence or provider operation reference; retain raw supporting output.
+48  Closure Approval Requested Date & Time
+Closure
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+49  Closure Approval Status
+Closure
+Controlled lifecycle/result value with supporting decision or technical evidence.
+50  Closure Approved / Rejected By
+Closure
+Person/team/service identity responsible for the recorded action or pending stage.
+51  Closure Approval Received Date & Time
+Closure
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+52  Ticket Closed Date & Time
+Closure
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+53  Vulnerability Verification Date & Time
+Closure
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+54  Verification Result
+Closure
+Controlled lifecycle/result value with supporting decision or technical evidence.
+55  Vulnerability Closed Date & Time
+Closure
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+56  Current Stage
+Governance / responsibility
+Store the exact requested field value with source and event linkage.
+57  Current Responsible Party
+Governance / responsibility
+Person/team/service identity responsible for the recorded action or pending stage.
+58  Current Stage Start Date & Time
+Governance / responsibility
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+59  Blocker Flag
+Governance / responsibility
+Store the exact requested field value with source and event linkage.
+60  Blocker Reason
+Governance / responsibility
+Store the exact requested field value with source and event linkage.
+61  Blocked With
+Governance / responsibility
+Person/team/service identity responsible for the recorded action or pending stage.
+62  Blocked Since Date & Time
+Governance / responsibility
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+63  Overall Governance Status
+Governance / responsibility
+Controlled lifecycle/result value with supporting decision or technical evidence.
+64  Finding to Ticket (Hrs)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+65  Ticket to Decision (Hrs)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+66  Decision to Pre-check Start (Hrs)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+67  Pre-check Completion to Patch Start (Hrs)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+68  Patch Duration (Min)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+69  Patch End to Post-check Completion (Hrs)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+70  Post-check Completion to Closure Approval (Hrs)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+71  Closure Approval to Ticket Closure (Hrs)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+72  Finding to Vulnerability Closure (Days)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+73  Time with Current Responsible Party (Hrs)
+Time gap / turnaround
+Capture the actual event time or calculate the elapsed interval under the approved time-zone and business calendar rule.
+10. Role-based access control (RBAC)
+User-visible report access follows the matrix supplied by IndusInd. The permissions below are a positive access list: a role does not inherit another role's reports merely because it is part of a technology team. Editing integrations, approving changes or launching patch jobs are separate action permissions and must follow an authorized access design.
+Role
+Authorized report / module access
+Infrastructure Team
+Squad1 report; Ticket Reports; Ticket Status Report; Inventory Freeze Reports; Governance Pack.
+Security/VAPT Team
+Tenable report; Squad1 report; Ticket Status; Governance Pack.
+ITSM/Service Desk
+Ticket Reports; error logs only.
+CMDB Team
+Delta CI Report; Inventory Reports; CMDB Update Report; Correlation Access.
+Platform Admin
+Manage user roles and access grants only; no unrestricted business/report viewing is implied.
+10.1 Access-control requirements
+IndusInd identity service authenticates end users; users are mapped to approved VPM360 roles and permitted data scopes.
+Enforce permissions at the API and data layer, not only by hiding menu items in the UI.
+Keep service identities for integrations separate from human approval and patch-execution authority.
+Display only permitted reports and records for a user's environment, applications and responsibility.
+Maintain audit history of access grant, revoke, sensitive configuration change and patch-job action.
+Confirm patch operator, approver, report publisher and policy editor roles separately before unattended execution is permitted.
+11. Infrastructure, HLD deployment and operations
+The proposed environment has separate UAT and Production deployments with independent connections, credentials and operational data. IndusInd provisions the infrastructure, networking, approved access, evidence retention and service prerequisites. The application is deployed after these prerequisites are accepted.
+11.1 Infrastructure provisioning baseline
+Environment
+VM count
+Capacity per VM
+DR usage
+UAT
+2
+16 CPU cores / 32 GB RAM / 1 TB storage
+One of two VMs allocated for Hot DR.
+Production
+2
+32 CPU cores / 64 GB RAM / 5 TB storage
+One of two VMs allocated for Hot DR.
+These figures are per VM, not combined environment totals. The Hot DR VM is included in the stated count; no additional standalone DR pair is assumed in the supplied provisioning baseline. Actual resilience topology, data replication and recovery objectives require IndusInd infrastructure approval.
+11.2 Deployment architecture decision
+Two supplied descriptions differ. The infrastructure requirement specifies Docker Compose on the four VMs, while another deployment illustration describes Docker Swarm on a single bare-metal Ubuntu host. These are not equivalent deployment topologies. V.1 records the VM provisioning baseline above and reserves the final container orchestration/availability design for client architecture signoff. It does not silently declare either model implemented.
+Area
+Configuration / decision required
+Orchestration
+Docker Compose versus Docker Swarm; final approved environment topology and cutover/DR behavior.
+Application stack
+Client-approved portal/API/worker/database services, container images, deployment manifests and service ports.
+Network access
+PVM360 -> source/ITSM/CMDB/executor HTTPS; executor runners -> approved hosts and patch repositories.
+Data services
+PostgreSQL persistence, Redis/task delivery where deployed, backups, monitoring and recovery design.
+Certificates / secrets
+CA trust, TLS, managed credentials, token refresh, network/firewall approvals and service identities.
+Evidence and audit
+Storage path and retention by data classification; controlled read access and backup schedule.
+Promotion
+UAT acceptance and business signoff before Production enablement; separate production credentials and changes.
+DR / resilience
+Hot DR readiness, failover and task reconciliation so restart cannot duplicate patch execution.
+Figure 8. Docker Swarm deployment architecture diagram (as shared by IndusInd).
+11.3 Operational ownership
+Area
+Owner / responsibility
+Platform configuration and approved integrations
+300Plus, working with named IndusInd owners and approved credentials.
+Vulnerability findings and validation
+IndusInd Security/VAPT and source-system teams.
+CMDB correlation and ownership
+IndusInd CMDB/asset management team.
+Change approvals and permitted workflow
+IndusInd ITSM/change authorities and application owners.
+Linux/Windows patches
+IndusInd Satellite and SCCM tool owners and patching teams.
+Database, middleware and AIX
+IndusInd DBA/Middleware/AIX engineers, with Controller/licensing and approved scripts maintained by IndusInd.
+Infrastructure and DR
+IndusInd infrastructure, networking and platform operations teams.
+Manual rollback
+IndusInd engineering team under its approved change/recovery procedure.
+Business closure
+Application team / approved business or security authority as defined in IndusInd workflow.
+12. Client inputs, decisions and acceptance
+An implementation or deployment dependency may remain open at BRD approval. The affected integration cannot be activated until it is resolved, tested and approved. The timing below follows the raw business direction that access keys, exact URLs and certain owner mappings may be provided during configuration or deployment.
+ID / client input
+Owner / due stage
+Current state
+D01  Final in-scope/out-of-scope statement
+IndusInd business sponsorBefore BRD baseline signoff
+Pending
+D02  Tenable access key, method/paging and successful/error response
+IndusInd Tenable teamConfiguration/deployment
+Access key explicitly deferred
+D03  Squad1 endpoint, auth, paging, source status and exception semantics
+Squad1 / IndusIndImport API planned 19 Oct 2026; configuration
+Response provided; endpoint pending
+D04  CMDB base URL, dataset, schema, relationships and field permissions
+IndusInd CMDB teamConfiguration/deployment
+Exact site values pending
+D05  Unique asset-owner rule and mapping into Helix
+IndusInd CMDB / infrastructureConfiguration/deployment, before routing live
+Client approach pending
+D06  Helix QA/Production auth and approved mandatory create field mapping
+IndusInd ITSMConfiguration/deployment
+QA example supplied
+D07  Helix approval, cancellation, window, actor/worklog, closure forms
+IndusInd ITSMBefore production ticket lifecycle automation
+Read/update maps pending
+D08  Standard/Normal change policy details, exception routing and closure authority
+IndusInd Change / Application ownersConfiguration and UAT
+Business baseline supplied
+D09  Satellite 6.9 host/template IDs, allowed inputs and job output responses
+IndusInd Linux/SatelliteConfiguration/deployment
+Runbook route provided
+D10  Separate approved Linux PRECHECK and Java-exclusion selection policy
+IndusInd Linux operationsBefore Linux auto-dispatch
+Combined YAML is not read-only
+D11  SCCM provider, auth/RBAC, OS/AD source, ADR, CollectionID and AssignmentID
+IndusInd SCCM / ADConfiguration/deployment
+2509 runbook supplied; site mapping pending
+D12  SCCM write utility/adapter and success/error/restart sample evidence
+IndusInd SCCMBefore Windows auto-dispatch
+Actual write interface pending
+D13  Controller 4.2 URL/token, machine permissions, inventory and OPTIONS compatibility
+IndusInd automationConfiguration/deployment
+Approved service rights to confirm
+D14  Ansible Automation licensing/entitlements
+IndusIndBefore Controller route activation
+Owned by IndusInd
+D15  Database, Middleware and AIX approved unattended scripts and output markers
+IndusInd DBA/MW/AIXConfiguration/UAT and before production use
+Owned by IndusInd
+D16  Patch catalog content, approved versions/binaries and recovery ownership
+IndusInd patch/product teamsBefore execution testing
+Current source and paths pending
+D17  CMDB OS Version and Last Patch Updated date/time write dataset/attributes
+IndusInd CMDBBefore writeback activation
+Exact mapping and timing pending
+D18  Final report source mapping; CVSS and Squad1/Helix discrepancies
+IndusInd Security/ITSM/CMDBDuring report configuration/UAT
+Detailed V.1 business precedence proposed
+D19  RBAC actions beyond reports and identity integration
+IndusInd Access / application ownersConfiguration/UAT
+Report visibility matrix supplied
+D20  Docker Compose vs Swarm and approved UAT/Prod Hot DR architecture
+IndusInd infrastructure/architectureBefore deployment build
+Conflicting layouts require signoff
+D21  NTP/time zones, retention, network, CA, HA/recovery and backups
+IndusInd infra/securityBefore operational UAT
+Client decisions pending
+D22  Product-specific SLA rules, UAT downtime/signoff and emergency escalation
+IndusInd security/DBA/applicationDuring policy configuration
+Multiple SOP policies require precedence
+12.1 Acceptance scenarios
+Test ID
+Expected client acceptance evidence
+AT-01
+Tenable valid import + informational exclusion and CVSS V3/V4 fallback.
+AT-02
+Squad1 82-key response, delta update, exception ID/end date and reopened finding.
+AT-03
+CMDB exact match, missing IP-only delta, ambiguous and inactive CI.
+AT-04
+CMDB owner resolution with multiple candidate names and blocked routing until unique owner confirmed.
+AT-05
+Helix Standard/non-production and Normal/production ticket mapping; exact payload field acceptance.
+AT-06
+Change approval, rejection, cancellation and maintenance-window gate at dispatch.
+AT-07
+Duplicate create timeout reconciliation does not raise a second change.
+AT-08
+Linux multi-host PRECHECK/PATCH/POSTCHECK captures per-host evidence; Java exclusion follows template.
+AT-09
+SCCM Windows version selection, inactive client skip, deployment status, reboot and compliance proof.
+AT-10
+Oracle production run checks UAT signoff, authorized work order, backups, expected OPatch/datapatch and health.
+AT-11
+SQL run verifies instance build/KB, backups, reboots and service health.
+AT-12
+Middleware WAS/IHS/JBoss scripts return all required steps and version/service validation.
+AT-13
+AIX script verifies clone, efix/packages, service package, oslevel and final health.
+AT-14
+Unknown provider submission reconciles to existing operation without duplicate patch.
+AT-15
+Patch failure stops dependent work, writes Helix worklog, and notifies asset owner for manual rollback.
+AT-16
+Successful patch without new scan evidence stays Awaiting Source Confirmation.
+AT-17
+Successful next source assessment, application-team closure and approved CMDB update.
+AT-18
+Failed Helix/CMDB update can retry without rerunning the patch.
+AT-19
+Eight reports have agreed field set and business filters, including one-column delta and exception origin.
+AT-20
+RBAC prevents each role from seeing unauthorized reports or performing unauthorized operations.
+AT-21
+73 governance fields capture every applicable timestamp, actor, result, evidence and TAT.
+AT-22
+UAT/Production isolation, deployment review and failover/restart job reconciliation.
+Each scenario should have a test identifier, owner, date, sample request/response or screen evidence, actual result, deviation if any and IndusInd signoff. A proposed API description does not become a tested integration until supported by observed UAT behavior.
+12.2 Requirement closure and signoff
+300Plus will maintain an implementation mapping from each signed requirement to its configured module, API contract, client-provided value, UAT test and evidence reference. IndusInd will approve business requirements and separately approve any modification to scope, owner mapping, production change logic, scripts, orchestration technology or closure policy.
+Approval area
+Signoff / comments
+Business scope and process
+Pending IndusInd confirmation
+Source, CMDB and Helix rules
+Pending IndusInd functional owners
+Executor and automation ownership
+Pending Satellite/SCCM/Controller and patch teams
+Reports, governance and RBAC
+Pending report owners and authorized administrators
+Deployment and infrastructure
+Pending IndusInd infrastructure/architecture
+BRD V.1 final acceptance
+Pending authorized IndusInd signatory
+A. Tenable field catalogue - complete 54-field scanner example
+These are the 54 exact Tenable scanner field labels supplied for source ingestion. The values are sample output, not a production validation baseline. Long advisory text is retained in the raw source record; the table summarizes it to keep the BRD readable. Connector implementation must validate each available field and preserve original values.
+# / Exact Tenable field
+Sample value / handling
+01  Plugin
+342667
+02  Plugin Name
+RHEL 9 : rhc (RHSA-2026:63130)
+03  Family
+Red Hat Local Security Checks
+04  Severity
+Medium
+05  IP Address
+0.0.0.0
+06  Protocol
+TCP
+07  Port
+0
+08  Exploit?
+No
+09  Repository
+Individual Scan
+10  MAC Address
+f6:5e:f1:5e:24:85
+11  DNS Name
+UATRPABGVTAPP01
+12  NetBIOS Name
+(empty in supplied sample)
+13  Plugin Output
+Installed package rhc-0.2.7-8.el9_8; expected rhc-0.2.7-11.el9_8.
+14  Synopsis
+The remote Red Hat host is missing one or more security updates for rhc.
+15  Description
+Long-form vendor advisory and vulnerability explanation; full text retained in raw import.
+16  Steps to Remediate
+Update the RHEL rhc package based on the guidance in RHSA-2026:63130.
+17  See Also
+Multiple supplied advisory/support URLs; retain as source references.
+18  Risk Factor
+High
+19  STIG Severity
+(empty in supplied sample)
+20  Vulnerability Priority Rating
+4.3
+21  Exploit Prediction Scoring System (EPSS)
+0.2
+22  CVSS V2 Base Score
+9.4
+23  CVSS V3 Base Score
+6.1
+24  CVSS V4 Base Score
+(empty in supplied sample)
+25  CVSS V2 Temporal Score
+7
+26  CVSS V3 Temporal Score
+5.3
+27  CVSS V4 Threat Score
+(empty in supplied sample)
+28  CVSS V2 Vector
+AV:N/AC:L/Au:N/C:C/I:C/A:N/E:U/RL:OF/RC:C
+29  CVSS V3 Vector
+AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N/E:U/RL:O/RC:C
+30  CVSS V4 Vector
+(empty in supplied sample)
+31  CVSS V4 Threat Vector
+(empty in supplied sample)
+32  CVSS V4 Supplemental
+(empty in supplied sample)
+33  CPE
+Red Hat Enterprise Linux 9 and rhc package CPEs; retain all values.
+34  CVE
+CVE-2026-33818,CVE-2026-56858,CVE-2026-56860,CVE-2026-56862
+35  BID
+(empty in supplied sample)
+36  Cross References
+RHSA #2026,CWE #79,CWE #770,CWE #776,CWE #1050
+37  First Discovered
+Sep 9, 2026 03:10:49 EDT
+38  Last Observed
+Sep 10, 2026 04:55:43 EDT
+39  Vuln Publication Date
+Aug 13, 2026 12:00:00 EDT
+40  Security End of Life Date
+N/A
+41  Patch Publication Date
+Sep 3, 2026 12:00:00 EDT
+42  Plugin Publication Date
+Sep 3, 2026 12:00:00 EDT
+43  Plugin Modification Date
+Sep 3, 2026 12:00:00 EDT
+44  Exploit Ease
+No known exploits are available
+45  Exploit Frameworks
+(empty in supplied sample)
+46  Check Type
+local
+47  Version
+1.1
+48  Recast Risk Comment
+Recast risk comments are not displayed for individual scan results
+49  Accept Risk Comment
+Accept risk comments are not displayed for individual scan results
+50  Agent ID
+b7fb85ac-abc4-4c58-8a27-fa77ade1cd6c
+51  Host ID
+181ae7bf-02bd-46dc-ac28-0fd4cf8a60f8
+52  Nessus Web Tests
+Disabled
+53  Thorough Tests
+Disabled
+54  Scan Accuracy
+Not Paranoid
+A.1 Mandatory Tenable normalization decisions
+Area
+Business rule
+Information severity
+Remove informational entries from actionable vulnerability workflows; preserve raw source if required for audit.
+CVSS normalized score
+CVSS V3 Base Score first; CVSS V4 Base Score if V3 unavailable.
+First Discovered
+Vulnerability start date/time.
+Last Observed
+Latest known source observation, separate from status and closure.
+CVE
+All associated CVE identifiers retained as a list.
+Patch guidance
+Steps to Remediate, Plugin Output and source description inform approved patch selection; never execute these texts as commands.
+Auth / access
+Tenable access key supplied at deployment; no credentials stored in this BRD.
+B. Squad1 source dictionary - all 82 exact fields
+The following 82 source keys are preserved exactly as provided. Data types below are proposed mapping classes inferred from sample values and names, not a published Squad1 API schema. IndusInd/Squad1 will confirm required versus optional keys, type coercion, timestamps and lifecycle semantics during connector configuration.
+# / Exact Squad1 key
+Proposed data class
+Business use
+01  VulnerabilityNo
+Identifier / address
+Core finding identification, priority or remediation routing.
+02  PluginID
+Identifier / address
+Core finding identification, priority or remediation routing.
+03  Target
+Identifier / address
+Core finding identification, priority or remediation routing.
+04  Vulnerability_Name
+Text / category
+Core finding identification, priority or remediation routing.
+05  Description
+Text / evidence
+Retain as supplied; use in applicable filter, report or approved rule.
+06  Protocol
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+07  Port
+Number / text-as-number
+Retain as supplied; use in applicable filter, report or approved rule.
+08  Risk_Rating
+Text / category
+Core finding identification, priority or remediation routing.
+09  STATUS
+Status / flag
+Core finding identification, priority or remediation routing.
+10  Recommendation
+Text / evidence
+Core finding identification, priority or remediation routing.
+11  Solution_Category
+Text / category
+Core finding identification, priority or remediation routing.
+12  POC/Plugin Output
+Text / evidence
+Security assessment and validation evidence.
+13  OWASP_mapping
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+14  CVE_ID
+Identifier / address
+Security assessment and validation evidence.
+15  CVSS_Score
+Number / text-as-number
+Security assessment and validation evidence.
+16  Risk_Type
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+17  Vulnerability_Holder
+Text / category
+Ownership/application context; reconcile with authoritative CMDB.
+18  Vulnerability_Holder_Department
+Text / category
+Ownership/application context; reconcile with authoritative CMDB.
+19  Vulnerability_Holder_Location
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+20  BU_Head
+Text / category
+Ownership/application context; reconcile with authoritative CMDB.
+21  Report_Published_Date
+Date/time
+Retain as supplied; use in applicable filter, report or approved rule.
+22  PlannedRemediationDate
+Date/time
+Retain as supplied; use in applicable filter, report or approved rule.
+23  Ageing
+Number / text-as-number
+Retain as supplied; use in applicable filter, report or approved rule.
+24  Risk_Severity_changeDate
+Date/time
+Retain as supplied; use in applicable filter, report or approved rule.
+25  Expiry_Date
+Date/time
+Retain as supplied; use in applicable filter, report or approved rule.
+26  Evidence
+Text / evidence
+Security assessment and validation evidence.
+27  URL_Location
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+28  Application_Mapping
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+29  Asset_Tags
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+30  Vulnerability_Tags
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+31  Environment
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+32  Assessment_List
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+33  Comments
+Text / evidence
+Retain as supplied; use in applicable filter, report or approved rule.
+34  LastModifiedDate
+Date/time
+Finding lifecycle, update ordering or verification input.
+35  Department_Name
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+36  Asset_Location_Name
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+37  Rule_Name
+Text / category
+Network or rule-specific context; not automatically an OS patch target.
+38  Rule_ID
+Identifier / address
+Network or rule-specific context; not automatically an OS patch target.
+39  Source_Interface
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+40  Source_IP
+Identifier / address
+Network or rule-specific context; not automatically an OS patch target.
+41  Source_Port
+Number / text-as-number
+Network or rule-specific context; not automatically an OS patch target.
+42  Source_Protocol
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+43  Destination_Interface
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+44  Destination_IP
+Identifier / address
+Network or rule-specific context; not automatically an OS patch target.
+45  Destination_Port
+Number / text-as-number
+Network or rule-specific context; not automatically an OS patch target.
+46  Destination_Protocol
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+47  Rule_Action
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+48  Rule_Log
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+49  Exception_END_Date
+Date/time
+Required exception or pending-responsibility synchronization.
+50  Exception_ID
+Identifier / address
+Required exception or pending-responsibility synchronization.
+51  VulnerabilityCompletionDate
+Date/time
+Finding lifecycle, update ordering or verification input.
+52  HostName
+Identifier / address
+Retain as supplied; use in applicable filter, report or approved rule.
+53  Tags_Name
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+54  Assessment_Name
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+55  Asset_Group_Name
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+56  ApplicationName
+Text / category
+Ownership/application context; reconcile with authoritative CMDB.
+57  Application_Owner
+Text / category
+Ownership/application context; reconcile with authoritative CMDB.
+58  Impact
+Text / evidence
+Retain as supplied; use in applicable filter, report or approved rule.
+59  Solution
+Text / evidence
+Retain as supplied; use in applicable filter, report or approved rule.
+60  Compliance
+Status / flag
+Retain as supplied; use in applicable filter, report or approved rule.
+61  AssetStatus
+Status / flag
+Retain as supplied; use in applicable filter, report or approved rule.
+62  Inherent_Risk
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+63  Residual_Risk
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+64  UATFixed
+Status / flag
+Finding lifecycle, update ordering or verification input.
+65  ProductionFixed
+Status / flag
+Finding lifecycle, update ordering or verification input.
+66  Asset_Type_Name
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+67  IsPrivateIP
+Status / flag
+Retain as supplied; use in applicable filter, report or approved rule.
+68  Asset_IsDeleted
+Status / flag
+Retain as supplied; use in applicable filter, report or approved rule.
+69  FirstPublishedDate
+Date/time
+Retain as supplied; use in applicable filter, report or approved rule.
+70  ReopenDate
+Date/time
+Finding lifecycle, update ordering or verification input.
+71  TeamHead_Name
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+72  BTGHead_Name
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+73  Closed_Comment
+Text / evidence
+Retain as supplied; use in applicable filter, report or approved rule.
+74  Publish
+Status / flag
+Retain as supplied; use in applicable filter, report or approved rule.
+75  Pending_With_Name
+Text / category
+Required exception or pending-responsibility synchronization.
+76  Asset_Name
+Identifier / address
+Retain as supplied; use in applicable filter, report or approved rule.
+77  Exploit
+Status / flag
+Retain as supplied; use in applicable filter, report or approved rule.
+78  Operating_System
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+79  Technology
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+80  Qualys_Asset_ID
+Identifier / address
+Retain as supplied; use in applicable filter, report or approved rule.
+81  Ext_Reference
+Text / category
+Retain as supplied; use in applicable filter, report or approved rule.
+82  TicketRiskScore
+Number / text-as-number
+Retain as supplied; use in applicable filter, report or approved rule.
+C. CMDB and inventory data dictionaries
+The following field labels and example values come from the inventory requirements provided for OS, Middleware and Database. The examples are illustrative, not live production truth. Source and mapping descriptions are retained to prevent a generic inventory mapping from losing bank-specific custom attributes.
+C.1 OS and server inventory - 22 fields
+Operating system version, target cycle and CI/ownership
+Exact field
+Sample value
+Expected source / rule
+01  CMDB Instance ID
+InstanceId
+Source CMDB
+02  CI Name*
+mdc-ctxddc01.ibl.com
+Source CMDB
+03  DNS Host Name
+mdc-ctxddc01
+Source CMDB
+04  IP Address
+10.24.1.1
+Source CMDB
+05  Location
+Mumbai
+Source CMDB
+06  Application Name
+Citrix XenDesktop - Delivery Controller
+Source CMDB
+07  IBL_SPOC/Assest Owner
+(to be mapped)
+Source CMDB, (Needs to finalize approach to identify unique name
+08  IT Application Owner
+(to be mapped)
+Source CMDB
+09  System Environment
+Production
+Source CMDB
+10  Prod/Non Prod
+Prod
+Its duplicate Field, but we will keep it as suggested by Indusind Team
+11  is Virtual
+Yes
+Source CMDB
+12  Internet Facing
+No
+Source CMDB
+13  Virtual System Type
+VMware
+Source CMDB
+14  IBL_Asset_Type
+Virtual Server
+Source CMDB
+15  Product Name+
+VMware Virtual Platform
+Source CMDB
+16  IBL_Server_Type
+App
+Source CMDB
+17  IBL_Operating_System
+Microsoft Windows Server 2016 Datacenter
+Source CMDB(by this we able to identify the version of OS)
+18  OS Type
+Windows
+Solution team needs to bifurcate as per the IBL_Operating System
+19  IBL_RiskClassification__
+Low
+Source CMDB
+20  Target Date
+15-Feb-26
+As per the cycle patching team will set the target 2 months cycle Ex-cycle starts 16th Aug - 15th Oct--15th Oct is the target date
+21  Last Patched Date
+(to be mapped)
+Last patching date need to check from previous tracker
+22  Aging
+(to be mapped)
+Aging will calulate as per the last patching date
+C.2 Middleware inventory - 19 fields
+Product version, OEM update and application ownership
+Exact field
+Sample value
+Expected source / rule
+01  CMDB Instance ID
+(to be mapped)
+Source CMDB
+02  CMDB CI
+(to be mapped)
+Source CMDB
+03  Username
+remitapp
+Source CMDB
+04  Hostname
+mdcdigiburapp1
+Source CMDB
+05  IP Address
+10.96.20.94
+Source CMDB
+06  Location
+Mumbai
+Source CMBD
+07  Application Name
+Retail FX - Digibureau
+Source CMDB
+08  IBL_SPOC/Assest Owner
+Ketki Umrotkar / Aditya Dalvi / Abhishek Kadam
+Source CMDB(Needs to finalize approach to identify unique name
+09  IT Application Owner
+Suresh Nair
+Source CMDB
+10  Technology
+JBOSS
+Source from MW inventory
+11  Environment
+Pre-Production
+Source CMDB
+12  Prod/Non Prod
+Non Prod
+Duplicate Field but we will keep it,
+13  CORE
+4
+Source CMDB
+14  Os Type
+Linux
+Source CMDB
+15  Installed Version
+8.1.0.5
+Source MW team Current version which in on server
+16  Recommended update version
+8.1.0.7
+Recomded by OEM which release on every 3 months
+17  Latest Patch Release Date
+7-Jul-26
+Source OEM
+18  End of suppport date
+5-Feb-31
+Source is CMDB
+19  Target Date
+15-Oct-26
+Target date as per the Cycle 3 months cycle,last date is the target date
+C.3 Database inventory - 14 fields
+Database technology, version and patch-cycle evidence
+Exact field
+Sample value
+Expected source / rule
+01  CMDB Instance ID
+(to be mapped)
+Source CMDB
+02  CMDB CI
+(to be mapped)
+Source CMDB
+03  IP
+(to be mapped)
+Source CMDB
+04  Location
+(to be mapped)
+Source CMDB
+05  Assest Owner
+(to be mapped)
+Source CMDB
+06  Hostname
+(to be mapped)
+Source CMDB
+07  Technology
+(to be mapped)
+Source CMDB
+08  Environment
+(to be mapped)
+Source CMDB
+09  Prod/Non Prod
+(to be mapped)
+Source CMDB
+10  IBL_DB_Version
+IBM DB2 11.5 Standard Edition
+Source CMDB
+11  IBL_RiskClassification__
+Low
+Source CMDB
+12  Last Patched date
+(to be mapped)
+solution team need to check from previous cycle tracker
+13  Ageing
+(to be mapped)
+Aging will calulate as per the last patching date(Manually created)
+14  Target Date
+15-Oct-26
+Target date as per the Cycle 3 months cycle,last date is the target date
+D. Helix QA creation payload and mapping - all 19 fields
+The client supplied the following test request for Helix change creation. Its field names are exact; its values are QA examples and must be mapped to approved production choices. In particular, DR Drill, Bugfix and Development are not blanket patching defaults. `Authorization` uses a short-lived token and is not shown with a real value.
+{
+  "values": {
+    "First Name": "A4 Application",
+    "Last Name": "User",
+    "Status": "Draft",
+    "Impact": "1-Extensive/Widespread",
+    "Urgency": "1-Critical",
+    "Location Company": "IndusInd Bank Limited",
+    "Detailed Description": "Raise Change from postman Rushi",
+    "Company3": "IndusInd Bank Limited",
+    "Support Organization": "L2 SUPPORT",
+    "Support Group Name": "L2 FINACLE SUPPORT",
+    "IBL_ChangeNature": "DR Drill",
+    "IBL_Nature_Of_Change": "Bugfix",
+    "IBL_Application_Infrastructure": "Application",
+    "IBL_Downtime_required": "No",
+    "ServiceCI": "Aadhar Vault",
+    "Description": "Change Create Through Postman By Rushikesh for Testing",
+    "Environment": "Development",
+    "Scheduled Start Date": "2026-10-14T16:45:00.000+0000",
+    "Scheduled End Date": "2026-10-20T16:45:00.000+0000"
+  }
+}
+# / Exact Helix form field
+Provided QA value
+Production mapping purpose
+01  First Name
+A4 Application
+Configured requester identity
+02  Last Name
+User
+Configured requester identity
+03  Status
+Draft
+Allowed initial change status
+04  Impact
+1-Extensive/Widespread
+Configured client impact/risk rule
+05  Urgency
+1-Critical
+Configured priority rule
+06  Location Company
+IndusInd Bank Limited
+Approved tenant/location company
+07  Detailed Description
+Raise Change from postman Rushi
+Finding, CI scope, patch plan, validation/rollback handover
+08  Company3
+IndusInd Bank Limited
+Approved tenant/company value
+09  Support Organization
+L2 SUPPORT
+Mapped approved support organization
+10  Support Group Name
+L2 FINACLE SUPPORT
+Mapped support group from owner rules
+11  IBL_ChangeNature
+DR Drill
+Approved change nature for remediation
+12  IBL_Nature_Of_Change
+Bugfix
+Approved technical change category
+13  IBL_Application_Infrastructure
+Application
+Application versus infrastructure classification
+14  IBL_Downtime_required
+No
+Actual approved downtime requirement
+15  ServiceCI
+Aadhar Vault
+Client-confirmed application/service CI mapping
+16  Description
+Change Create Through Postman By Rushikesh for Testing
+Readable change summary and vulnerability reference
+17  Environment
+Development
+Correlated target environment
+18  Scheduled Start Date
+2026-10-14T16:45:00.000+0000
+Approved start in supported time zone
+19  Scheduled End Date
+2026-10-20T16:45:00.000+0000
+Approved end in supported time zone
+HELIX RESPONSE REQUIREMENT:  Capture HTTP status, returned Location/AR entry ID and resulting business Change Request Number, and validate approval/worklog/update operations using actual client-approved forms. AR entry ID and business change number may be different.
+E. Squad1 example response - full supplied schema
+This sanitized example preserves all 82 names and their supplied sample values, inside the source response envelope. It is included to show developers and client reviewers the full data contract without requiring another document. Names and values in the example are illustrative and are not operational instructions.
+{
+  "statusCode": 200,
+  "statusMessage": "Success",
+  "data": [
+    {
+      "VulnerabilityNo": "VUL-2026-000145",
+      "PluginID": "19506",
+      "Target": "192.168.10.25",
+      "Vulnerability_Name": "SSL/TLS Weak Cipher Suites Supported",
+      "Description": "The target system supports weak SSL/TLS cipher suites that may allow an attacker to weaken encrypted communication.",
+      "Protocol": "TCP",
+      "Port": "443",
+      "Risk_Rating": "Medium",
+      "STATUS": "Open",
+      "Recommendation": "Disable weak cipher suites and allow only strong TLS configurations.",
+      "Solution_Category": "Configuration",
+      "POC/Plugin Output": "The server supports TLS_RSA_WITH_3DES_EDE_CBC_SHA on port 443.",
+      "OWASP_mapping": "A02:2021 - Cryptographic Failures",
+      "CVE_ID": "CVE-2016-2183",
+      "CVSS_Score": "5.9",
+      "Risk_Type": "Technical Vulnerability",
+      "Vulnerability_Holder": "Rahul Sharma",
+      "Vulnerability_Holder_Department": "Infrastructure",
+      "Vulnerability_Holder_Location": "Mumbai",
+      "BU_Head": "Amit Mehta",
+      "Report_Published_Date": "2026-09-20",
+      "PlannedRemediationDate": "2026-10-05",
+      "Ageing": "5",
+      "Risk_Severity_changeDate": "2026-09-22",
+      "Expiry_Date": "2026-10-20",
+      "Evidence": "Nessus scan output confirms weak cipher suite support.",
+      "URL_Location": "https://192.168.10.25",
+      "Application_Mapping": "Customer Portal",
+      "Asset_Tags": "Production,Critical,InternetFacing",
+      "Vulnerability_Tags": "SSL,TLS,Cipher",
+      "Environment": "Production",
+      "Assessment_List": "Infrastructure Security Assessment",
+      "Comments": "Remediation activity assigned to infrastructure team.",
+      "LastModifiedDate": "2026-09-25T12:30:00",
+      "Department_Name": "Infrastructure",
+      "Asset_Location_Name": "Mumbai Data Center",
+      "Rule_Name": "Allow HTTPS Traffic",
+      "Rule_ID": "FW-443-001",
+      "Source_Interface": "Internet",
+      "Source_IP": "0.0.0.0/0",
+      "Source_Port": "Any",
+      "Source_Protocol": "TCP",
+      "Destination_Interface": "DMZ",
+      "Destination_IP": "192.168.10.25",
+      "Destination_Port": "443",
+      "Destination_Protocol": "TCP",
+      "Rule_Action": "Allow",
+      "Rule_Log": "Enabled",
+      "Exception_END_Date": "",
+      "Exception_ID": "",
+      "VulnerabilityCompletionDate": "",
+      "HostName": "WEB-PROD-01",
+      "Tags_Name": "WebServer,Production,Critical",
+      "Assessment_Name": "Q3 Infrastructure VA",
+      "Asset_Group_Name": "Production Web Servers",
+      "ApplicationName": "Customer Portal",
+      "Application_Owner": "Neha Patel",
+      "Impact": "An attacker may exploit weak cryptographic configurations to reduce the security of encrypted communication.",
+      "Solution": "Disable 3DES and other weak cipher suites. Configure the server to support TLS 1.2 or higher with strong cipher suites.",
+      "Compliance": "PCI DSS, ISO 27001",
+      "AssetStatus": "Active",
+      "Inherent_Risk": "High",
+      "Residual_Risk": "Medium",
+      "UATFixed": "Yes",
+      "ProductionFixed": "No",
+      "Asset_Type_Name": "Web Server",
+      "IsPrivateIP": "Yes",
+      "Asset_IsDeleted": "No",
+      "FirstPublishedDate": "2026-09-20",
+      "ReopenDate": "",
+      "TeamHead_Name": "Suresh Patil",
+      "BTGHead_Name": "Vikram Joshi",
+      "Closed_Comment": "",
+      "Publish": "Yes",
+      "Pending_With_Name": "Infrastructure Team",
+      "Asset_Name": "WEB-PROD-01",
+      "Exploit": "No",
+      "Operating_System": "Windows Server 2022",
+      "Technology": "IIS 10",
+      "Qualys_Asset_ID": "QASSET-458921",
+      "Ext_Reference": "NESSUS-2026-09145",
+      "TicketRiskScore": "65"
+    }
+  ]
+}
+F. Data and acceptance audit summary
+The following audit records the quantitative coverage of V.1. Every original source field label listed here is reproduced in this same BRD. Source readiness and approval status are separately tracked in Section 12, so completeness of documentation is not confused with completion of deployment testing.
+Content group
+Count / verification
+Tenable scanner output fields
+54 exact labels in Appendix A.
+Squad1 payload
+82 exact keys in Appendix B and full example in Appendix E.
+CMDB read APIs
+5 read/auth operations in Section 4; proposed writeback in Section 4.8.
+OS server fields
+22 exact field rows in Appendix C.
+Middleware fields
+19 exact field rows in Appendix C.
+Database fields
+14 exact field rows in Appendix C.
+Helix create fields
+19 exact payload keys and mapping in Appendix D.
+Reusable job template fields
+13 business fields in Section 5.2.
+Power BI report schemas
+8 reports and 201 column positions in Section 9.2.
+Governance lifecycle fields
+73 exact labels in Section 9.3.
+Functional requirements
+38 cross-module IDs in Section 7.1 plus technology-specific process tables.
+Client dependency entries
+22 recorded items with due stage in Section 12.
+Acceptance cases
+22 proposed UAT scenarios in Section 12.1.
+Architecture diagrams
+Original workflow plus redrawn HLD and LLD embedded within this document.
+Controlled unresolved decisions
+Before execution is switched on in Production, IndusInd must approve the final project scope, exact API permissions and response mappings, asset-owner identification, Helix read/update forms, SCCM execution interface, Controller module/script availability, automation scripts and licensing, the report-source discrepancies, and the Docker deployment architecture. These are configuration/deployment and acceptance decisions, not missing chapters in the BRD.
+End of V.1 requirements baseline.

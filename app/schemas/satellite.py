@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+
 class SatelliteHostBase(BaseModel):
     """Fields for a host registered in Satellite."""
 
@@ -34,6 +35,23 @@ class SatelliteHostBase(BaseModel):
     source_payload: dict[str, Any] | None = None
 
 
+class SatelliteHostCreate(SatelliteHostBase):
+    """Schema for creating a Satellite host."""
+
+
+class SatelliteHostUpdate(BaseModel):
+    """Schema for updating a Satellite host."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, max_length=255)
+    ip_address: str | None = Field(default=None, max_length=45)
+    operating_system: str | None = Field(default=None, max_length=255)
+    organization_id: int | None = None
+    location_id: int | None = None
+    source_payload: dict[str, Any] | None = None
+
+
 class SatelliteHostResponse(SatelliteHostBase):
     """Schema returned for a persisted Satellite host."""
 
@@ -42,22 +60,55 @@ class SatelliteHostResponse(SatelliteHostBase):
     updated_at: datetime
 
 
-class SatelliteJobTemplateResponse(BaseModel):
-    """Schema returned for a Satellite job template."""
+class SatelliteHostListResponse(BaseModel):
+    """Paginated list of Satellite hosts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[SatelliteHostResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    has_more: bool
+
+
+class SatelliteJobTemplateBase(BaseModel):
+    """Base fields for a Satellite job template."""
 
     model_config = ConfigDict(
         extra="forbid",
         from_attributes=True,
     )
 
-    id: int
-    source_template_id: str
-    name: str
+    source_template_id: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=255)
     description: str | None = None
-    template_type: str | None = None
+    template_type: str | None = Field(default=None, max_length=100)
     input_schema: dict[str, Any] | None = None
     source_payload: dict[str, Any] | None = None
+
+
+class SatelliteJobTemplateCreate(SatelliteJobTemplateBase):
+    """Schema for creating a Satellite job template."""
+
+
+class SatelliteJobTemplateResponse(SatelliteJobTemplateBase):
+    """Schema returned for a Satellite job template."""
+
+    id: int
     created_at: datetime
+
+
+class SatelliteJobTemplateListResponse(BaseModel):
+    """Paginated list of Satellite job templates."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[SatelliteJobTemplateResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    has_more: bool
 
 
 class SatelliteJobLaunchRequest(BaseModel):
@@ -81,19 +132,6 @@ class SatelliteJobLaunchRequest(BaseModel):
         default_factory=dict,
     )
 
-    @classmethod
-    def validate_host_ids(cls, values: list[str]) -> list[str]:
-        """Validate host identifiers."""
-        normalized = [value.strip() for value in values]
-
-        if any(not value for value in normalized):
-            raise ValueError("Host IDs cannot be blank")
-
-        if len(set(normalized)) != len(normalized):
-            raise ValueError("Duplicate host IDs are not allowed")
-
-        return normalized
-    
     @field_validator("host_ids")
     @classmethod
     def validate_host_ids(cls, values: list[str]) -> list[str]:
@@ -128,6 +166,18 @@ class SatelliteJobRunResponse(BaseModel):
     created_at: datetime
 
 
+class SatelliteJobRunListResponse(BaseModel):
+    """Paginated list of Satellite job runs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[SatelliteJobRunResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    has_more: bool
+
+
 class SatelliteJobHostResultResponse(BaseModel):
     """Schema returned for one host's job result."""
 
@@ -146,6 +196,18 @@ class SatelliteJobHostResultResponse(BaseModel):
     completed_at: datetime | None = None
 
 
+class SatelliteJobHostResultListResponse(BaseModel):
+    """Paginated list of Satellite host results."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[SatelliteJobHostResultResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1, le=500)
+    offset: int = Field(ge=0)
+    has_more: bool
+
+
 class SatelliteJobCancelRequest(BaseModel):
     """Request metadata for cancelling an eligible job."""
 
@@ -155,3 +217,13 @@ class SatelliteJobCancelRequest(BaseModel):
         default=None,
         max_length=1000,
     )
+
+
+class SatelliteImportResponse(BaseModel):
+    """Summary of Satellite provider import operation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hosts_imported: int
+    job_templates_imported: int
+    errors: int

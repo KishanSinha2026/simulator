@@ -79,6 +79,15 @@ class CMDBMiddlewareRepository(BaseRepository[CMDBMiddleware]):
         )
         return self.db.scalars(statement).first()
 
+    def get_by_ip(self, ip_address: str) -> list[CMDBMiddleware]:
+        """Return all middleware matching an IP address."""
+        statement = (
+            select(CMDBMiddleware)
+            .where(CMDBMiddleware.ip_address == ip_address)
+            .order_by(CMDBMiddleware.id)
+        )
+        return list(self.db.scalars(statement).all())
+
 
 class CMDBDatabaseRepository(BaseRepository[CMDBDatabase]):
     """Database operations for database configuration items."""
@@ -95,3 +104,47 @@ class CMDBDatabaseRepository(BaseRepository[CMDBDatabase]):
             CMDBDatabase.source_instance_id == source_instance_id
         )
         return self.db.scalars(statement).first()
+
+    def get_by_ip(self, ip_address: str) -> list[CMDBDatabase]:
+        """Return all databases matching an IP address."""
+        statement = (
+            select(CMDBDatabase)
+            .where(CMDBDatabase.ip_address == ip_address)
+            .order_by(CMDBDatabase.id)
+        )
+        return list(self.db.scalars(statement).all())
+
+
+class CMDBRelationshipRepository(BaseRepository):
+    """Database operations for CMDB CI relationships."""
+
+    def __init__(self, db: Session) -> None:
+        from app.models.cmdb import CMDBRelationship
+        super().__init__(db, CMDBRelationship)
+
+    def get_by_source_id(
+        self,
+        source_relationship_id: str,
+    ):
+        """Find a relationship by its external identifier."""
+        from app.models.cmdb import CMDBRelationship
+        statement = select(CMDBRelationship).where(
+            CMDBRelationship.source_relationship_id == source_relationship_id
+        )
+        return self.db.scalars(statement).first()
+
+    def find_for_instance(
+        self,
+        instance_id: str,
+    ):
+        """Return relationships involving a source or destination instance ID."""
+        from app.models.cmdb import CMDBRelationship
+        statement = (
+            select(CMDBRelationship)
+            .where(
+                (CMDBRelationship.source_instance_id == instance_id)
+                | (CMDBRelationship.destination_instance_id == instance_id)
+            )
+            .order_by(CMDBRelationship.id)
+        )
+        return list(self.db.scalars(statement).all())
