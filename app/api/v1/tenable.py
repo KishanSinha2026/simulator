@@ -41,7 +41,7 @@ def get_tenable_service(
     summary="List vulnerability findings",
 )
 def list_findings(
-    limit: int = Query(default=100, ge=1, le=500, description="Max records to return"),
+    limit: int = Query(default=100, ge=1, le=50000, description="Max records to return"),
     offset: int = Query(default=0, ge=0, description="Offset for pagination"),
     severity: str | None = Query(default=None, min_length=1, description="Filter by severity (Critical, High, Medium, Low)"),
     ip_address: str | None = Query(
@@ -103,7 +103,7 @@ def get_finding(
     summary="List scanner executions",
 )
 def list_scans(
-    limit: int = Query(default=100, ge=1, le=500, description="Max scans to return"),
+    limit: int = Query(default=100, ge=1, le=50000, description="Max scans to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     service: TenableService = Depends(get_tenable_service),
 ):
@@ -123,7 +123,7 @@ def list_scans(
     summary="Import and synchronize findings into PostgreSQL",
 )
 def import_findings(
-    limit: int = Query(default=100, ge=1, le=1000),
+    limit: int = Query(default=100, ge=1, le=50000),
     offset: int = Query(default=0, ge=0),
     service: TenableService = Depends(get_tenable_service),
 ) -> dict[str, Any]:

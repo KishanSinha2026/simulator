@@ -345,8 +345,8 @@ class ITSMAPIProvider:
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """List change requests with supported filters and pagination."""
-        if not 1 <= limit <= 500:
-            raise ValueError("limit must be between 1 and 500")
+        if not 1 <= limit <= 50000:
+            raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
             raise ValueError("offset cannot be negative")

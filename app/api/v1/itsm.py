@@ -53,7 +53,7 @@ def get_itsm_service(
     summary="List change requests",
 )
 def list_changes(
-    limit: int = Query(default=100, ge=1, le=500, description="Max changes to return"),
+    limit: int = Query(default=100, ge=1, le=50000, description="Max changes to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     status_filter: str | None = Query(default=None, alias="status", description="Filter by status (Draft, Pending Approval, Scheduled, etc.)"),
     service: ITSMService = Depends(get_itsm_service),
@@ -131,7 +131,7 @@ def get_change(
 )
 def list_change_worklogs(
     change_id: int,
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=100, ge=1, le=50000),
     offset: int = Query(default=0, ge=0),
     service: ITSMService = Depends(get_itsm_service),
 ):

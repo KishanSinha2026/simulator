@@ -100,8 +100,8 @@ class SatelliteJsonProvider:
         if not host_ids:
             raise ValueError("At least one host is required")
 
-        if len(set(host_ids)) != len(host_ids):
-            raise ValueError("Duplicate host IDs are not allowed")
+        # Idempotently deduplicate host IDs
+        host_ids = list(dict.fromkeys(host_ids))
 
         template = self.job_templates.get_by_id(template_id)
 

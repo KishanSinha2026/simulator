@@ -243,3 +243,88 @@ def test_system_and_health_routes(client: TestClient):
     res_root = client.get("/")
     assert res_root.status_code == 200
     assert res_root.json()["status"] == "running"
+
+
+# =====================================================================
+# 6. Large Dataset (20k+) & Idempotency / Deduplication Tests
+# =====================================================================
+
+def test_large_dataset_queries_up_to_20k(client: TestClient):
+    """Verify that queries with limit up to 20,000 succeed without validation error."""
+    # Test 20k limit on Tenable findings
+    res_tenable = client.get("/api/v1/tenable/findings?limit=20000")
+    assert res_tenable.status_code == 200, res_tenable.text
+    data_tenable = res_tenable.json()
+    assert "items" in data_tenable
+
+    # Test 20k limit on Tenable scans
+    res_scans = client.get("/api/v1/tenable/scans?limit=20000")
+    assert res_scans.status_code == 200, res_scans.text
+
+    # Test 20k limit on CMDB servers
+    res_cmdb = client.get("/api/v1/cmdb/servers?limit=20000")
+    assert res_cmdb.status_code == 200, res_cmdb.text
+
+    # Test 20k limit on ITSM changes
+    res_itsm = client.get("/api/v1/itsm/changes?limit=20000")
+    assert res_itsm.status_code == 200, res_itsm.text
+
+    # Test 20k limit on Satellite hosts
+    res_sat = client.get("/api/v1/satellite/hosts?limit=20000")
+    assert res_sat.status_code == 200, res_sat.text
+
+
+def test_idempotency_and_duplicate_handling(client: TestClient):
+    """Verify idempotent behavior: duplicate records do not fail and are merged/updated."""
+    # 1. ITSM Change Idempotency
+    test_chg_id = f"CHG-IDEMP-{uuid.uuid4().hex[:6].upper()}"
+    chg_payload = {
+        "source_change_id": test_chg_id,
+        "first_name": "Antigravity",
+        "last_name": "Idempotent",
+        "status": "Draft",
+        "description": "Initial description",
+    }
+    # First POST
+    res1 = client.post("/api/v1/itsm/changes", json=chg_payload)
+    assert res1.status_code in (200, 201), res1.text
+    initial_id = res1.json()["id"]
+
+    # Second identical/updated POST with same source_change_id
+    chg_payload["description"] = "Idempotently updated description"
+    res2 = client.post("/api/v1/itsm/changes", json=chg_payload)
+    assert res2.status_code in (200, 201), res2.text
+    updated_record = res2.json()
+    assert updated_record["id"] == initial_id
+    assert updated_record["source_change_id"] == test_chg_id
+
+    # 2. Satellite Job Launch with duplicate host IDs (auto-deduplicated)
+    res_templates = client.get("/api/v1/satellite/job-templates")
+    tmpl_id = res_templates.json()["items"][0]["source_template_id"]
+    res_hosts = client.get("/api/v1/satellite/hosts")
+    host_id = res_hosts.json()["items"][0]["source_host_id"]
+
+    # Pass duplicate host ID in host_ids list
+    dup_launch_payload = {
+        "template_id": tmpl_id,
+        "host_ids": [host_id, host_id, host_id],  # Duplicates
+        "inputs": {"dry_run": "true"},
+    }
+    res_dup_launch = client.post("/api/v1/satellite/jobs", json=dup_launch_payload)
+    assert res_dup_launch.status_code in (200, 201, 202), res_dup_launch.text
+
+    # 3. Repeated /import calls (Idempotent upsert across all providers)
+    res_t_imp1 = client.post("/api/v1/tenable/import?limit=500")
+    assert res_t_imp1.status_code == 200, res_t_imp1.text
+    res_t_imp2 = client.post("/api/v1/tenable/import?limit=500")
+    assert res_t_imp2.status_code == 200, res_t_imp2.text
+
+    res_c_imp = client.post("/api/v1/cmdb/import")
+    assert res_c_imp.status_code == 200, res_c_imp.text
+
+    res_i_imp = client.post("/api/v1/itsm/import")
+    assert res_i_imp.status_code == 200, res_i_imp.text
+
+    res_s_imp = client.post("/api/v1/satellite/import")
+    assert res_s_imp.status_code == 200, res_s_imp.text
+

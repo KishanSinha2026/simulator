@@ -157,7 +157,7 @@ class ITSMChangeListResponse(BaseModel):
 
     items: list[ITSMChangeResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -206,7 +206,7 @@ class ITSMWorklogListResponse(BaseModel):
 
     items: list[ITSMWorklogResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -236,7 +236,7 @@ class ITSMChangeHistoryListResponse(BaseModel):
 
     items: list[ITSMChangeHistoryResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 

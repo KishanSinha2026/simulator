@@ -42,7 +42,7 @@ class CMDBJsonProvider:
             return record
 
         matches = provider.list_records(
-            limit=10000,
+            limit=50000,
             filters={"source_instance_id": source_instance_id},
         )
 
@@ -62,7 +62,7 @@ class CMDBJsonProvider:
         offset: int = 0,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """List server CIs with optional filters and pagination."""
+        """List server CIs with optional filters and pagination (supports up to 50k)."""
         return self.servers.list_records(
             limit=limit,
             offset=offset,
@@ -75,7 +75,7 @@ class CMDBJsonProvider:
     ) -> list[dict[str, Any]]:
         """Return every server matching an IP address."""
         return self.servers.list_records(
-            limit=10000,
+            limit=50000,
             filters={"ip_address": ip_address},
         )
 

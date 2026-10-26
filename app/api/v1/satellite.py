@@ -46,7 +46,7 @@ def get_satellite_service(
     summary="List Satellite hosts (BRD S1)",
 )
 def list_hosts(
-    limit: int = Query(default=100, ge=1, le=500, description="Max hosts to return"),
+    limit: int = Query(default=100, ge=1, le=50000, description="Max hosts to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:
@@ -63,7 +63,7 @@ def list_hosts(
     summary="List approved job templates (BRD S2)",
 )
 def list_job_templates(
-    limit: int = Query(default=100, ge=1, le=500, description="Max templates to return"),
+    limit: int = Query(default=100, ge=1, le=50000, description="Max templates to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:

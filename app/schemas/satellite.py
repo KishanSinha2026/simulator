@@ -67,7 +67,7 @@ class SatelliteHostListResponse(BaseModel):
 
     items: list[SatelliteHostResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -106,7 +106,7 @@ class SatelliteJobTemplateListResponse(BaseModel):
 
     items: list[SatelliteJobTemplateResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -141,10 +141,8 @@ class SatelliteJobLaunchRequest(BaseModel):
         if any(not value for value in normalized):
             raise ValueError("Host IDs cannot be blank")
 
-        if len(set(normalized)) != len(normalized):
-            raise ValueError("Duplicate host IDs are not allowed")
-
-        return normalized
+        # Idempotently deduplicate host IDs
+        return list(dict.fromkeys(normalized))
 
 
 class SatelliteJobRunResponse(BaseModel):
@@ -173,7 +171,7 @@ class SatelliteJobRunListResponse(BaseModel):
 
     items: list[SatelliteJobRunResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -203,7 +201,7 @@ class SatelliteJobHostResultListResponse(BaseModel):
 
     items: list[SatelliteJobHostResultResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 

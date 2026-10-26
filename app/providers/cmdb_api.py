@@ -446,8 +446,8 @@ class CMDBAPIProvider:
         """
         source_ip = self._require_ip_text(ip_address)
 
-        if not 1 <= limit <= 500:
-            raise ValueError("limit must be between 1 and 500")
+        if not 1 <= limit <= 50000:
+            raise ValueError("limit must be between 1 and 50000")
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
@@ -500,8 +500,8 @@ class CMDBAPIProvider:
             "CMDB_RELATIONSHIP_CLASS",
         )
 
-        if not 1 <= limit <= 500:
-            raise ValueError("limit must be between 1 and 500")
+        if not 1 <= limit <= 50000:
+            raise ValueError("limit must be between 1 and 50000")
         if not 1 <= levels <= 10:
             raise ValueError("levels must be between 1 and 10")
 
@@ -714,8 +714,8 @@ class CMDBAPIProvider:
         attributes: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Read one page of CMDB instances for a specified class."""
-        if not 1 <= limit <= 500:
-            raise ValueError("limit must be between 1 and 500")
+        if not 1 <= limit <= 50000:
+            raise ValueError("limit must be between 1 and 50000")
         if offset < 0:
             raise ValueError("offset cannot be negative")
 

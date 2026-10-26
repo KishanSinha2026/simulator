@@ -169,7 +169,7 @@ class TenableFindingListResponse(BaseModel):
 
     items: list[TenableFindingResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -209,7 +209,7 @@ class TenableScanListResponse(BaseModel):
 
     items: list[TenableScanResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 

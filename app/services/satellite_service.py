@@ -48,8 +48,8 @@ class SatelliteService:
         offset: int = 0,
     ) -> dict[str, Any]:
         """List hosts stored in PostgreSQL."""
-        if limit < 1:
-            raise ValueError("limit must be greater than zero")
+        if limit < 1 or limit > 50000:
+            raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
             raise ValueError("offset cannot be negative")
@@ -87,7 +87,17 @@ class SatelliteService:
     def create_host(self, payload: SatelliteHostCreate) -> SatelliteHost:
         """Create a Satellite host record in PostgreSQL."""
         data = payload.model_dump()
+        source_id = data.get("source_host_id")
         try:
+            if source_id:
+                existing = self.host_repository.get_by_source_id(source_id)
+                if existing is not None:
+                    for k, v in data.items():
+                        setattr(existing, k, v)
+                    self.db.commit()
+                    self.db.refresh(existing)
+                    return existing
+
             host = self.host_repository.create(data)
             self.db.commit()
             self.db.refresh(host)
@@ -130,8 +140,8 @@ class SatelliteService:
         offset: int = 0,
     ) -> dict[str, Any]:
         """List job templates stored in PostgreSQL."""
-        if limit < 1:
-            raise ValueError("limit must be greater than zero")
+        if limit < 1 or limit > 50000:
+            raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
             raise ValueError("offset cannot be negative")
@@ -168,7 +178,17 @@ class SatelliteService:
     ) -> SatelliteJobTemplate:
         """Create a job template in PostgreSQL."""
         data = payload.model_dump()
+        source_id = data.get("source_template_id")
         try:
+            if source_id:
+                existing = self.template_repository.get_by_source_id(source_id)
+                if existing is not None:
+                    for k, v in data.items():
+                        setattr(existing, k, v)
+                    self.db.commit()
+                    self.db.refresh(existing)
+                    return existing
+
             template = self.template_repository.create(data)
             self.db.commit()
             self.db.refresh(template)
@@ -189,8 +209,8 @@ class SatelliteService:
         status: str | None = None,
     ) -> dict[str, Any]:
         """List job runs stored in PostgreSQL."""
-        if limit < 1:
-            raise ValueError("limit must be greater than zero")
+        if limit < 1 or limit > 50000:
+            raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
             raise ValueError("offset cannot be negative")
@@ -219,11 +239,10 @@ class SatelliteService:
         payload: SatelliteJobLaunchRequest,
     ) -> dict[str, Any]:
         """Record a simulated job without executing remote commands."""
-        if not payload.host_ids:
+        # Idempotently deduplicate host IDs
+        clean_host_ids = list(dict.fromkeys(payload.host_ids))
+        if not clean_host_ids:
             raise ValueError("At least one host ID is required")
-
-        if len(set(payload.host_ids)) != len(payload.host_ids):
-            raise ValueError("Duplicate host IDs are not allowed")
 
         if self.db.query(SatelliteJobTemplate).count() == 0:
             self.import_provider_data()
@@ -434,57 +453,83 @@ class SatelliteService:
         templates_imported = 0
         errors = 0
 
-        # Import hosts
+        # Import hosts in batches
         if hasattr(self.provider, "list_hosts"):
             try:
-                for item in self.provider.list_hosts(limit=5000):
-                    source_id = str(item.get("source_host_id") or item.get("id") or "").strip()
-                    if not source_id:
-                        continue
-                    existing = self.host_repository.get_by_source_id(source_id)
-                    data = {
-                        "source_host_id": source_id,
-                        "name": item.get("name") or source_id,
-                        "ip_address": item.get("ip_address"),
-                        "operating_system": item.get("operating_system"),
-                        "organization_id": item.get("organization_id"),
-                        "location_id": item.get("location_id"),
-                        "source_payload": item.get("source_payload") or item,
+                raw_hosts = self.provider.list_hosts(limit=50000)
+                clean_hosts: dict[str, dict[str, Any]] = {}
+                for item in raw_hosts:
+                    sid = str(item.get("source_host_id") or item.get("id") or "").strip()
+                    if sid:
+                        clean_hosts[sid] = item
+
+                chunk = list(clean_hosts.values())
+                chunk_size = 500
+                for i in range(0, len(chunk), chunk_size):
+                    batch = chunk[i : i + chunk_size]
+                    batch_ids = [str(item.get("source_host_id") or item.get("id")).strip() for item in batch]
+                    existing_map = {
+                        h.source_host_id: h
+                        for h in self.db.query(SatelliteHost).filter(SatelliteHost.source_host_id.in_(batch_ids)).all()
                     }
-                    if existing is None:
-                        self.host_repository.create(data)
+                    for item in batch:
+                        source_id = str(item.get("source_host_id") or item.get("id")).strip()
+                        existing = existing_map.get(source_id)
+                        data = {
+                            "source_host_id": source_id,
+                            "name": item.get("name") or source_id,
+                            "ip_address": item.get("ip_address"),
+                            "operating_system": item.get("operating_system"),
+                            "organization_id": item.get("organization_id"),
+                            "location_id": item.get("location_id"),
+                            "source_payload": item.get("source_payload") or item,
+                        }
+                        if existing is None:
+                            self.host_repository.create(data)
+                        else:
+                            self.host_repository.update(existing, data)
                         hosts_imported += 1
-                    else:
-                        self.host_repository.update(existing, data)
-                        hosts_imported += 1
-                self.db.commit()
+                    self.db.commit()
             except Exception:
                 self.db.rollback()
                 errors += 1
 
-        # Import job templates
+        # Import job templates in batches
         if hasattr(self.provider, "list_job_templates"):
             try:
-                for item in self.provider.list_job_templates(limit=5000):
-                    source_id = str(item.get("source_template_id") or item.get("id") or "").strip()
-                    if not source_id:
-                        continue
-                    existing = self.template_repository.get_by_source_id(source_id)
-                    data = {
-                        "source_template_id": source_id,
-                        "name": item.get("name") or source_id,
-                        "description": item.get("description"),
-                        "template_type": item.get("template_type"),
-                        "input_schema": item.get("input_schema"),
-                        "source_payload": item.get("source_payload") or item,
+                raw_templates = self.provider.list_job_templates(limit=50000)
+                clean_templates: dict[str, dict[str, Any]] = {}
+                for item in raw_templates:
+                    sid = str(item.get("source_template_id") or item.get("id") or "").strip()
+                    if sid:
+                        clean_templates[sid] = item
+
+                chunk = list(clean_templates.values())
+                chunk_size = 500
+                for i in range(0, len(chunk), chunk_size):
+                    batch = chunk[i : i + chunk_size]
+                    batch_ids = [str(item.get("source_template_id") or item.get("id")).strip() for item in batch]
+                    existing_map = {
+                        t.source_template_id: t
+                        for t in self.db.query(SatelliteJobTemplate).filter(SatelliteJobTemplate.source_template_id.in_(batch_ids)).all()
                     }
-                    if existing is None:
-                        self.template_repository.create(data)
+                    for item in batch:
+                        source_id = str(item.get("source_template_id") or item.get("id")).strip()
+                        existing = existing_map.get(source_id)
+                        data = {
+                            "source_template_id": source_id,
+                            "name": item.get("name") or source_id,
+                            "description": item.get("description"),
+                            "template_type": item.get("template_type"),
+                            "input_schema": item.get("input_schema"),
+                            "source_payload": item.get("source_payload") or item,
+                        }
+                        if existing is None:
+                            self.template_repository.create(data)
+                        else:
+                            self.template_repository.update(existing, data)
                         templates_imported += 1
-                    else:
-                        self.template_repository.update(existing, data)
-                        templates_imported += 1
-                self.db.commit()
+                    self.db.commit()
             except Exception:
                 self.db.rollback()
                 errors += 1

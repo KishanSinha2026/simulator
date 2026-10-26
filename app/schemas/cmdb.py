@@ -185,7 +185,7 @@ class CMDBServerListResponse(BaseModel):
 
     items: list[CMDBServerResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -257,7 +257,7 @@ class CMDBMiddlewareListResponse(BaseModel):
 
     items: list[CMDBMiddlewareResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -321,7 +321,7 @@ class CMDBDatabaseListResponse(BaseModel):
 
     items: list[CMDBDatabaseResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 
@@ -354,7 +354,7 @@ class CMDBRelationshipListResponse(BaseModel):
 
     items: list[CMDBRelationshipResponse]
     total: int = Field(ge=0)
-    limit: int = Field(ge=1, le=500)
+    limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
     has_more: bool
 

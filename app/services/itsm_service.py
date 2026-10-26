@@ -59,8 +59,8 @@ class ITSMService:
         status: str | None = None,
     ) -> dict[str, Any]:
         """List persisted changes with optional status filtering."""
-        if limit < 1:
-            raise ValueError("limit must be greater than zero")
+        if limit < 1 or limit > 50000:
+            raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
             raise ValueError("offset cannot be negative")
@@ -108,7 +108,17 @@ class ITSMService:
             data.get("scheduled_end_at"),
         )
 
+        source_id = data.get("source_change_id")
         try:
+            if source_id:
+                existing = self.repository.get_by_source_id(source_id)
+                if existing is not None:
+                    for k, v in data.items():
+                        setattr(existing, k, v)
+                    self.db.commit()
+                    self.db.refresh(existing)
+                    return existing
+
             record = self.repository.create(data)
 
             # Record history entry for change creation
@@ -228,7 +238,17 @@ class ITSMService:
         data = payload.model_dump()
         data["change_id"] = change_id
 
+        source_wid = data.get("source_worklog_id")
         try:
+            if source_wid:
+                existing = self.worklog_repository.get_by_source_id(source_wid)
+                if existing is not None:
+                    for k, v in data.items():
+                        setattr(existing, k, v)
+                    self.db.commit()
+                    self.db.refresh(existing)
+                    return existing
+
             worklog = self.worklog_repository.create(data)
             self.db.commit()
             self.db.refresh(worklog)
@@ -304,44 +324,57 @@ class ITSMService:
         worklogs_imported = 0
         errors = 0
 
-        # Import changes
+        # Import changes in batches
         if hasattr(self.provider, "list_changes"):
             try:
-                for item in self.provider.list_changes(limit=5000):
-                    source_id = str(item.get("source_change_id") or item.get("id") or "").strip()
-                    if not source_id:
-                        continue
-                    existing = self.repository.get_by_source_id(source_id)
-                    data = {
-                        "source_change_id": source_id,
-                        "first_name": item.get("first_name"),
-                        "last_name": item.get("last_name"),
-                        "status": item.get("status"),
-                        "impact": str(item.get("impact")) if item.get("impact") is not None else None,
-                        "urgency": str(item.get("urgency")) if item.get("urgency") is not None else None,
-                        "location_company": item.get("location_company"),
-                        "detailed_description": item.get("detailed_description"),
-                        "company": item.get("company"),
-                        "support_organization": item.get("support_organization"),
-                        "support_group_name": item.get("support_group_name"),
-                        "change_nature": item.get("change_nature"),
-                        "nature_of_change": item.get("nature_of_change"),
-                        "application_infrastructure": item.get("application_infrastructure"),
-                        "downtime_required": item.get("downtime_required"),
-                        "service_ci": item.get("service_ci"),
-                        "description": item.get("description"),
-                        "environment": item.get("environment"),
-                        "scheduled_start_at": item.get("scheduled_start_at"),
-                        "scheduled_end_at": item.get("scheduled_end_at"),
-                        "source_payload": item.get("source_payload") or item,
+                raw_changes = self.provider.list_changes(limit=50000)
+                clean_changes: dict[str, dict[str, Any]] = {}
+                for item in raw_changes:
+                    sid = str(item.get("source_change_id") or item.get("id") or "").strip()
+                    if sid:
+                        clean_changes[sid] = item
+
+                chunk = list(clean_changes.values())
+                chunk_size = 500
+                for i in range(0, len(chunk), chunk_size):
+                    batch = chunk[i : i + chunk_size]
+                    batch_ids = [str(item.get("source_change_id") or item.get("id")).strip() for item in batch]
+                    existing_map = {
+                        c.source_change_id: c
+                        for c in self.db.query(ITSMChange).filter(ITSMChange.source_change_id.in_(batch_ids)).all()
                     }
-                    if existing is None:
-                        self.repository.create(data)
+                    for item in batch:
+                        source_id = str(item.get("source_change_id") or item.get("id")).strip()
+                        existing = existing_map.get(source_id)
+                        data = {
+                            "source_change_id": source_id,
+                            "first_name": item.get("first_name"),
+                            "last_name": item.get("last_name"),
+                            "status": item.get("status"),
+                            "impact": str(item.get("impact")) if item.get("impact") is not None else None,
+                            "urgency": str(item.get("urgency")) if item.get("urgency") is not None else None,
+                            "location_company": item.get("location_company"),
+                            "detailed_description": item.get("detailed_description"),
+                            "company": item.get("company"),
+                            "support_organization": item.get("support_organization"),
+                            "support_group_name": item.get("support_group_name"),
+                            "change_nature": item.get("change_nature"),
+                            "nature_of_change": item.get("nature_of_change"),
+                            "application_infrastructure": item.get("application_infrastructure"),
+                            "downtime_required": item.get("downtime_required"),
+                            "service_ci": item.get("service_ci"),
+                            "description": item.get("description"),
+                            "environment": item.get("environment"),
+                            "scheduled_start_at": item.get("scheduled_start_at"),
+                            "scheduled_end_at": item.get("scheduled_end_at"),
+                            "source_payload": item.get("source_payload") or item,
+                        }
+                        if existing is None:
+                            self.repository.create(data)
+                        else:
+                            self.repository.update(existing, data)
                         changes_imported += 1
-                    else:
-                        self.repository.update(existing, data)
-                        changes_imported += 1
-                self.db.commit()
+                    self.db.commit()
             except Exception:
                 self.db.rollback()
                 errors += 1

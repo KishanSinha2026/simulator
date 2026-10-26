@@ -41,7 +41,7 @@ def get_cmdb_service(
     summary="List server configuration items",
 )
 def list_servers(
-    limit: int = Query(default=100, ge=1, le=500, description="Max servers to return"),
+    limit: int = Query(default=100, ge=1, le=50000, description="Max servers to return"),
     offset: int = Query(default=0, ge=0, description="Pagination offset"),
     status_filter: str | None = Query(default=None, alias="status", description="Filter by status (Active, Inactive, etc.)"),
     ip_address: str | None = Query(default=None, min_length=1, max_length=45, description="Filter by exact IP address"),

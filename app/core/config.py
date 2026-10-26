@@ -84,7 +84,7 @@ class Settings(BaseSettings):
         ge=1,
         le=1000,
     )
-    tenable_max_scan_results: int = Field(default=10000, ge=1)
+    tenable_max_scan_results: int = Field(default=50000, ge=1)
 
     # ---------------------------------------------------------
     # BMC Helix CMDB - read/correlation configuration

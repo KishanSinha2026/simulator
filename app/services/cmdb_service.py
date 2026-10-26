@@ -42,8 +42,8 @@ class CMDBService:
     @staticmethod
     def _validate_pagination(limit: int, offset: int) -> None:
         """Validate pagination parameters."""
-        if not 1 <= limit <= 500:
-            raise ValueError("limit must be between 1 and 500")
+        if not 1 <= limit <= 50000:
+            raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
             raise ValueError("offset cannot be negative")
@@ -175,6 +175,14 @@ class CMDBService:
         data["source_instance_id"] = source_instance_id.strip()
 
         try:
+            existing = self.repository.get_by_source_id(source_instance_id)
+            if existing is not None:
+                for k, v in data.items():
+                    setattr(existing, k, v)
+                self.db.commit()
+                self.db.refresh(existing)
+                return existing
+
             record = self.repository.create(data)
             self.db.commit()
             self.db.refresh(record)
@@ -497,34 +505,47 @@ class CMDBService:
         # 1. Import servers
         if hasattr(self.provider, "list_servers"):
             try:
-                for item in self.provider.list_servers(limit=5000):
-                    source_id = str(item.get("source_instance_id") or item.get("id") or "").strip()
-                    if not source_id:
-                        continue
-                    existing = self.repository.get_by_source_id(source_id)
-                    data = {
-                        "source_instance_id": source_id,
-                        "ci_name": item.get("ci_name"),
-                        "dns_host_name": item.get("dns_host_name"),
-                        "ip_address": item.get("ip_address"),
-                        "application_name": item.get("application_name"),
-                        "asset_owner": item.get("asset_owner"),
-                        "it_application_owner": item.get("it_application_owner"),
-                        "system_environment": item.get("system_environment"),
-                        "production_status": item.get("production_status"),
-                        "os_type": item.get("os_type"),
-                        "os_version": item.get("os_version"),
-                        "location": item.get("location"),
-                        "status": item.get("status"),
-                        "source_payload": item.get("source_payload") or item,
+                raw_servers = self.provider.list_servers(limit=50000)
+                clean_servers: dict[str, dict[str, Any]] = {}
+                for item in raw_servers:
+                    sid = str(item.get("source_instance_id") or item.get("id") or "").strip()
+                    if sid:
+                        clean_servers[sid] = item
+
+                chunk = list(clean_servers.values())
+                chunk_size = 500
+                for i in range(0, len(chunk), chunk_size):
+                    batch = chunk[i : i + chunk_size]
+                    batch_ids = [str(item.get("source_instance_id") or item.get("id")).strip() for item in batch]
+                    existing_map = {
+                        s.source_instance_id: s
+                        for s in self.db.query(CMDBServer).filter(CMDBServer.source_instance_id.in_(batch_ids)).all()
                     }
-                    if existing is None:
-                        self.repository.create(data)
+                    for item in batch:
+                        source_id = str(item.get("source_instance_id") or item.get("id")).strip()
+                        existing = existing_map.get(source_id)
+                        data = {
+                            "source_instance_id": source_id,
+                            "ci_name": item.get("ci_name"),
+                            "dns_host_name": item.get("dns_host_name"),
+                            "ip_address": item.get("ip_address"),
+                            "application_name": item.get("application_name"),
+                            "asset_owner": item.get("asset_owner"),
+                            "it_application_owner": item.get("it_application_owner"),
+                            "system_environment": item.get("system_environment"),
+                            "production_status": item.get("production_status"),
+                            "os_type": item.get("os_type"),
+                            "os_version": item.get("os_version"),
+                            "location": item.get("location"),
+                            "status": item.get("status"),
+                            "source_payload": item.get("source_payload") or item,
+                        }
+                        if existing is None:
+                            self.repository.create(data)
+                        else:
+                            self.repository.update(existing, data)
                         servers_count += 1
-                    else:
-                        self.repository.update(existing, data)
-                        servers_count += 1
-                self.db.commit()
+                    self.db.commit()
             except Exception:
                 self.db.rollback()
                 errors += 1
