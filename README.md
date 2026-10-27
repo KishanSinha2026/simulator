@@ -544,6 +544,19 @@ Interactive API documentation will be available at:
 - **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 - **OpenAPI Schema**: [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
 
+### Building the FastAPI Docker Image
+
+The root `Dockerfile` builds only the FastAPI/Uvicorn service. Build and start it with a reachable PostgreSQL database:
+
+```bash
+docker build -t vpm360-api .
+docker run --rm -p 8000:8000 -e DATABASE_URL="postgresql+psycopg://USER:PASSWORD@DB_HOST:5432/DB_NAME" vpm360-api
+```
+
+The container binds Uvicorn to `0.0.0.0` and uses the hosting platform's `PORT` value when supplied (otherwise port `8000`). Configure the production database URL as a host secret/environment variable, then run `alembic upgrade head` as the host's release/migration command before serving requests. Do not include `.env` in the image or commit production credentials.
+
+After the image is deployed to an always-on container host, set the Streamlit Cloud `API_BASE_URL` secret to that service's public URL ending in `/api/v1`. The Streamlit Cloud app URL itself is not the FastAPI endpoint.
+
 ### Running the Streamlit Frontend
 
 Start the FastAPI/Uvicorn backend first, then run Streamlit in a second terminal:
