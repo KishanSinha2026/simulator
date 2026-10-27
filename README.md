@@ -352,7 +352,7 @@ Implements BRD Section 4.3 correlation logic:
 
 ## Canonical BRD Route Catalog
 
-The simulator strictly exposes **21 canonical paths / 23 operations** conforming directly to BRD Section 4. All routes are unified: callers do not need separate paths for API vs JSON fixture mode.
+The simulator exposes **20 canonical integration paths / 22 operations** across the configured providers. All routes are unified: callers do not need separate paths for API vs JSON fixture mode.
 
 | Method | Endpoint Path | Summary / Function |
 |---|---|---|
@@ -365,7 +365,7 @@ The simulator strictly exposes **21 canonical paths / 23 operations** conforming
 | `POST` | `/api/v1/cmdb/servers` | Idempotent create/update of server CI |
 | `GET` | `/api/v1/cmdb/servers/{server_id}` | Retrieve server CI by ID |
 | `PATCH` | `/api/v1/cmdb/servers/{server_id}` | Update server CI attributes |
-| `GET` | `/api/v1/cmdb/correlate` | Correlate IP address to server CI (BRD Section 4.3) |
+| `GET` | `/api/v1/cmdb/correlate/{ip_address}` | Correlate IP address to server CI (BRD Section 4.3) |
 | `POST` | `/api/v1/cmdb/import` | Synchronize servers, middleware, and databases into PostgreSQL |
 | `GET` | `/api/v1/itsm/changes` | List ITSM change requests (supports `limit=50000`) |
 | `POST` | `/api/v1/itsm/changes` | Idempotent create/update of change request |
@@ -377,6 +377,8 @@ The simulator strictly exposes **21 canonical paths / 23 operations** conforming
 | `GET` | `/api/v1/satellite/job-templates` | List available remote execution templates |
 | `POST` | `/api/v1/satellite/jobs` | Launch simulated or remote patch job |
 | `GET` | `/api/v1/satellite/jobs/{job_run_id}` | Retrieve job run execution status |
+| `GET` | `/api/v1/satellite/jobs/{job_run_id}/hosts/{host_id}` | Retrieve one host's job result (BRD S5) |
+| `GET` | `/api/v1/satellite/jobs/{job_run_id}/hosts/{host_id}/raw` | Retrieve retained raw output for one host (BRD S6) |
 | `POST` | `/api/v1/satellite/jobs/{job_run_id}/cancel` | Cancel an active job execution |
 | `POST` | `/api/v1/satellite/import` | Synchronize Satellite hosts and templates into PostgreSQL |
 

@@ -4,7 +4,9 @@ Implements unified BRD Section 4.5 routes:
 - GET /hosts (S1: Inventory hosts registered in Satellite)
 - GET /job-templates (S2: Approved Ansible/Satellite execution job templates)
 - POST /jobs (S3: Launch job invocation with template_id, host_ids, inputs)
-- GET /jobs/{job_run_id} (S4/S5: Read job status and host execution results)
+- GET /jobs/{job_run_id} (S4: Read job status and summary)
+- GET /jobs/{job_run_id}/hosts/{host_id} (S5: Read one host's result)
+- GET /jobs/{job_run_id}/hosts/{host_id}/raw (S6: Read one host's raw output)
 - POST /jobs/{job_run_id}/cancel (S7: Policy-approved job cancellation)
 - POST /import (synchronize/import hosts and job templates into PostgreSQL)
 """
@@ -20,6 +22,8 @@ from app.schemas.satellite import (
     SatelliteHostListResponse,
     SatelliteImportResponse,
     SatelliteJobCancelRequest,
+    SatelliteJobHostRawResponse,
+    SatelliteJobHostResultResponse,
     SatelliteJobLaunchRequest,
     SatelliteJobRunResponse,
     SatelliteJobTemplateListResponse,
@@ -109,7 +113,7 @@ def launch_job(
 @router.get(
     "/jobs/{job_run_id}",
     response_model=SatelliteJobRunResponse,
-    summary="Get job run status and results (BRD S4/S5)",
+    summary="Get job run status and summary (BRD S4)",
 )
 def get_job_run(
     job_run_id: int,
@@ -129,6 +133,54 @@ def get_job_run(
             detail="Satellite job run not found",
         )
     return job
+
+
+@router.get(
+    "/jobs/{job_run_id}/hosts/{host_id}",
+    response_model=SatelliteJobHostResultResponse,
+    summary="Get per-host job result (BRD S5)",
+)
+def get_host_job_result(
+    job_run_id: int,
+    host_id: str,
+    service: SatelliteService = Depends(get_satellite_service),
+):
+    """Retrieve a single host's result for a job run."""
+    if job_run_id < 1 or not host_id.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="job_run_id must be positive and host_id cannot be blank",
+        )
+    if service.get_job_run(job_run_id) is None:
+        raise HTTPException(status_code=404, detail="Satellite job run not found")
+    result = service.get_host_result(job_run_id, host_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Satellite host result not found")
+    return result
+
+
+@router.get(
+    "/jobs/{job_run_id}/hosts/{host_id}/raw",
+    response_model=SatelliteJobHostRawResponse,
+    summary="Get raw per-host job output (BRD S6)",
+)
+def get_host_job_raw_output(
+    job_run_id: int,
+    host_id: str,
+    service: SatelliteService = Depends(get_satellite_service),
+):
+    """Retrieve raw output retained for one host's job result."""
+    if job_run_id < 1 or not host_id.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="job_run_id must be positive and host_id cannot be blank",
+        )
+    if service.get_job_run(job_run_id) is None:
+        raise HTTPException(status_code=404, detail="Satellite job run not found")
+    raw_result = service.get_host_result_raw(job_run_id, host_id)
+    if raw_result is None:
+        raise HTTPException(status_code=404, detail="Satellite host result not found")
+    return raw_result
 
 
 @router.post(

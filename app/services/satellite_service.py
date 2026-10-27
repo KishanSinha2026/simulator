@@ -374,10 +374,41 @@ class SatelliteService:
     def get_host_result(
         self,
         job_run_id: int,
-        host_id: int,
+        host_id: int | str,
     ) -> SatelliteJobHostResult | None:
-        """Retrieve host result by job run and host ID."""
-        return self.result_repository.get_for_job_and_host(job_run_id, host_id)
+        """Retrieve host result by job run and source or internal host ID."""
+        host = self.host_repository.get_by_source_id(str(host_id))
+        internal_host_id = host.id if host is not None else None
+        if internal_host_id is None:
+            try:
+                internal_host_id = int(host_id)
+            except (TypeError, ValueError):
+                return None
+        return self.result_repository.get_for_job_and_host(
+            job_run_id,
+            internal_host_id,
+        )
+
+    def get_host_result_raw(
+        self,
+        job_run_id: int,
+        host_id: int | str,
+    ) -> dict[str, Any] | None:
+        """Return raw per-host output retained with the job result."""
+        result = self.get_host_result(job_run_id, host_id)
+        if result is None:
+            return None
+
+        payload = result.source_payload or {}
+        return {
+            "job_run_id": result.job_run_id,
+            "host_id": result.host_id,
+            "stdout": payload.get("stdout", result.result_text),
+            "stderr": payload.get("stderr"),
+            "exit_code": payload.get("exit_code"),
+            "raw_output": payload.get("raw_output", result.result_text),
+            "source_payload": payload,
+        }
 
     # ------------------------------------------------------------------
     # Provider Operations (JSON Fixture or External Satellite API)
