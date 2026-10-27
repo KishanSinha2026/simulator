@@ -553,7 +553,15 @@ $env:API_BASE_URL = "http://127.0.0.1:8000/api/v1"
 streamlit run streamlit_app.py
 ```
 
-The frontend reads the backend's OpenAPI schema and exposes every documented operation in the **All API Routes** tab, along with integration dashboards for Tenable, Squad1, CMDB, ITSM, Satellite and SCCM. To share a hosted Streamlit frontend, set `API_BASE_URL` in Streamlit Secrets to the reachable FastAPI URL ending in `/api/v1`; the Uvicorn service must be reachable from the Streamlit host.
+The frontend reads the backend's OpenAPI schema and exposes every documented operation in the **All API Routes** tab, along with integration dashboards for Tenable, Squad1, CMDB, ITSM, Satellite and SCCM. The dashboard uses a fixed 100-record preview and has no record-count slider.
+
+For Streamlit Cloud, deploy the FastAPI/Uvicorn backend separately at a URL reachable from the Streamlit app, then add this to the Streamlit app's Secrets:
+
+```toml
+API_BASE_URL = "https://your-fastapi-service.example.com/api/v1"
+```
+
+Do not use `localhost` or `127.0.0.1` in the Cloud secret: those addresses refer to the Streamlit container, not your computer or the separate FastAPI host. The frontend calls FastAPI server-to-server, so the backend needs to be network reachable from Streamlit Cloud.
 
 ### Running the Test Suite
 

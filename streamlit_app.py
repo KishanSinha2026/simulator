@@ -26,7 +26,7 @@ def get_api_url() -> str:
         secret = st.secrets.get("API_BASE_URL", "")
     except Exception:
         secret = ""
-    return str(secret or os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api/v1")).strip().rstrip("/")
+    return str(secret or os.getenv("API_BASE_URL", "")).strip().rstrip("/")
 
 
 def api_url(base_url: str, endpoint: str) -> str:
@@ -303,19 +303,27 @@ with st.sidebar:
     api_base_url = st.text_input(
         "FastAPI base URL",
         value=get_api_url(),
-        help="Include the API prefix, usually /api/v1. Example: https://your-api.example.com/api/v1",
+        placeholder="https://your-api.example.com/api/v1",
+        help="For Streamlit Cloud, set API_BASE_URL in the app's Secrets to your publicly reachable FastAPI URL, ending in /api/v1.",
     ).strip().rstrip("/")
-    record_limit = st.selectbox("Records per section", [25, 50, 100, 250], index=2)
     if st.button("Refresh dashboard"):
         st.rerun()
 
 if not api_base_url:
-    st.warning("Enter the FastAPI base URL in the sidebar.")
+    st.info("Set API_BASE_URL in Streamlit Cloud Secrets to the public FastAPI URL ending in /api/v1, or enter it in the sidebar.")
     st.stop()
 
 health_status, health, health_error = api_request(api_base_url, "GET", "health")
 if health_error:
-    st.error(f"FastAPI health check failed: {health_error}")
+    if "Could not connect" in health_error:
+        st.error(
+            "FastAPI health check failed: Streamlit cannot reach this backend. "
+            "On Streamlit Cloud, localhost points to the Streamlit container. "
+            "Deploy FastAPI/Uvicorn at a reachable URL and set API_BASE_URL in Streamlit Secrets. "
+            f"Connection detail: {health_error}"
+        )
+    else:
+        st.error(f"FastAPI health check failed: {health_error}")
 else:
     st.success(f"FastAPI connected (HTTP {health_status}).")
 
@@ -339,7 +347,7 @@ with tabs[0]:
     for start in range(0, len(resources), 3):
         cols = st.columns(3)
         for col, (label, endpoint) in zip(cols, resources[start:start + 3]):
-            _, metadata, error = get_items(api_base_url, endpoint, {"limit": record_limit, "offset": 0})
+            _, metadata, error = get_items(api_base_url, endpoint, {"limit": 100, "offset": 0})
             if error:
                 col.metric(label, "Unavailable")
                 col.caption(error)
@@ -354,29 +362,29 @@ with tabs[0]:
         st.caption(f"{len(operations)} documented API operations are available in the All API Routes tab.")
 
 with tabs[1]:
-    render_list_section(api_base_url, "Tenable findings", "tenable/findings", record_limit)
-    render_list_section(api_base_url, "Tenable scans", "tenable/scans", record_limit)
+    render_list_section(api_base_url, "Tenable findings", "tenable/findings", 100)
+    render_list_section(api_base_url, "Tenable scans", "tenable/scans", 100)
 
 with tabs[2]:
-    render_list_section(api_base_url, "Squad1 vulnerabilities", "squad1/vulnerabilities", record_limit)
-    render_list_section(api_base_url, "Squad1 exceptions", "squad1/exceptions", record_limit)
+    render_list_section(api_base_url, "Squad1 vulnerabilities", "squad1/vulnerabilities", 100)
+    render_list_section(api_base_url, "Squad1 exceptions", "squad1/exceptions", 100)
 
 with tabs[3]:
-    render_list_section(api_base_url, "BMC Helix CMDB servers", "cmdb/servers", record_limit)
+    render_list_section(api_base_url, "BMC Helix CMDB servers", "cmdb/servers", 100)
     st.markdown("Correlate a finding IP with the CMDB server CI using the route in **All API Routes**.")
 
 with tabs[4]:
-    render_list_section(api_base_url, "BMC Helix ITSM changes", "itsm/changes", record_limit)
+    render_list_section(api_base_url, "BMC Helix ITSM changes", "itsm/changes", 100)
 
 with tabs[5]:
-    render_list_section(api_base_url, "Red Hat Satellite hosts", "satellite/hosts", record_limit)
-    render_list_section(api_base_url, "Satellite job templates", "satellite/job-templates", record_limit)
+    render_list_section(api_base_url, "Red Hat Satellite hosts", "satellite/hosts", 100)
+    render_list_section(api_base_url, "Satellite job templates", "satellite/job-templates", 100)
 
 with tabs[6]:
-    render_list_section(api_base_url, "SCCM devices", "sccm/devices", record_limit)
-    render_list_section(api_base_url, "SCCM collections", "sccm/collections", record_limit)
-    render_list_section(api_base_url, "SCCM deployments", "sccm/deployments", record_limit)
-    render_list_section(api_base_url, "SCCM deployment runs", "sccm/jobs", record_limit)
+    render_list_section(api_base_url, "SCCM devices", "sccm/devices", 100)
+    render_list_section(api_base_url, "SCCM collections", "sccm/collections", 100)
+    render_list_section(api_base_url, "SCCM deployments", "sccm/deployments", 100)
+    render_list_section(api_base_url, "SCCM deployment runs", "sccm/jobs", 100)
 
 with tabs[7]:
     if openapi_error:
