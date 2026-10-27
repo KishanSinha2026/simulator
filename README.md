@@ -544,6 +544,17 @@ Interactive API documentation will be available at:
 - **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 - **OpenAPI Schema**: [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
 
+### Running the Streamlit Frontend
+
+Start the FastAPI/Uvicorn backend first, then run Streamlit in a second terminal:
+
+```powershell
+$env:API_BASE_URL = "http://127.0.0.1:8000/api/v1"
+streamlit run streamlit_app.py
+```
+
+The frontend reads the backend's OpenAPI schema and exposes every documented operation in the **All API Routes** tab, along with integration dashboards for Tenable, Squad1, CMDB, ITSM, Satellite and SCCM. To share a hosted Streamlit frontend, set `API_BASE_URL` in Streamlit Secrets to the reachable FastAPI URL ending in `/api/v1`; the Uvicorn service must be reachable from the Streamlit host.
+
 ### Running the Test Suite
 
 Execute the integration test suite validating canonical routes, 20k query throughput, idempotency, Squad1, and SCCM:
