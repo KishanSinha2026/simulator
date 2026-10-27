@@ -23,10 +23,10 @@ HTTP_METHODS = {"get", "post", "put", "patch", "delete"}
 def get_api_url() -> str:
     """Read the versioned API base URL from secrets or environment."""
     try:
-        secret = st.secrets.get("API_BASE_URL", "")
+        configured_url = st.secrets.get("API_BASE_URL", "")
     except Exception:
-        secret = ""
-    return str(secret or os.getenv("API_BASE_URL", "")).strip().rstrip("/")
+        configured_url = ""
+    return str(configured_url or os.getenv("API_BASE_URL", "")).strip().rstrip("/")
 
 
 def api_url(base_url: str, endpoint: str) -> str:

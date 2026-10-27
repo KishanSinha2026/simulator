@@ -1,6 +1,5 @@
 """Factory for configured integration providers."""
 
-import importlib
 import logging
 from threading import RLock
 from typing import Any
@@ -97,16 +96,30 @@ def _build_provider(integration: str) -> Any:
         module_name, class_name = API_PROVIDER_MODULES[integration]
 
         try:
-            module = importlib.import_module(module_name)
-            provider_class = getattr(module, class_name)
+            if integration == "tenable":
+                from app.providers.tenable_api import TenableAPIProvider
+                return TenableAPIProvider()
+            if integration == "cmdb":
+                from app.providers.cmdb_api import CMDBAPIProvider
+                return CMDBAPIProvider()
+            if integration == "itsm":
+                from app.providers.itsm_api import ITSMAPIProvider
+                return ITSMAPIProvider()
+            if integration == "satellite":
+                from app.providers.satellite_api import SatelliteAPIProvider
+                return SatelliteAPIProvider()
+            if integration == "squad1":
+                from app.providers.squad1_api import Squad1APIProvider
+                return Squad1APIProvider()
+            if integration == "sccm":
+                from app.providers.sccm_api import SCCMAPIProvider
+                return SCCMAPIProvider()
         except (ImportError, AttributeError) as exc:
             raise RuntimeError(
                 f"The {integration} API provider could not be loaded. "
                 f"Verify that {module_name}.{class_name} exists "
                 "and that its dependencies are installed."
             ) from exc
-
-        return provider_class()
 
     raise ValueError(
         f"Unsupported provider mode {mode!r} "

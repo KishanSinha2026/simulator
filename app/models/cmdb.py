@@ -3,12 +3,9 @@ from datetime import datetime
 
 from sqlalchemy import (
     DateTime,
-    ForeignKey,
     Index,
     Integer,
     String,
-    Text,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB

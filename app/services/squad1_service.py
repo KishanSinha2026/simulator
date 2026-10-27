@@ -1,6 +1,5 @@
 """Business logic for Squad1 vulnerability lifecycle management."""
 
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session

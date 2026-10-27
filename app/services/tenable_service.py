@@ -3,7 +3,6 @@
 from typing import Any
 
 from sqlalchemy import func
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.tenable import TenableFinding, TenableFindingCVE, TenableScan

@@ -5,13 +5,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements-api.txt ./requirements-api.txt
-RUN pip install --no-cache-dir -r requirements-api.txt
+RUN useradd --create-home --no-user-group appuser
+
+COPY requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini
 COPY fixtures ./fixtures
+
+USER appuser
 
 EXPOSE 8000
 

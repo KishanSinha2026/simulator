@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.sccm import (
     SCCMCollection,
     SCCMDeployment,
-    SCCMDeploymentAssetDetail,
     SCCMDeploymentRun,
     SCCMDevice,
 )
