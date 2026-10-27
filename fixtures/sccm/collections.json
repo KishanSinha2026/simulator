@@ -1,0 +1,24 @@
+[
+  {
+    "id": "sccm-col-001",
+    "collection_id": "SMS00001",
+    "name": "Windows Server 2019/2022 Production Patching",
+    "comment": "Approved device collection for monthly ADR security update cycle.",
+    "member_count": 2,
+    "source_payload": {
+      "refresh_type": "Periodic",
+      "is_simulated": true
+    }
+  },
+  {
+    "id": "sccm-col-002",
+    "collection_id": "SMS00002",
+    "name": "Windows Server 2016 DMZ Patching",
+    "comment": "DMZ perimeter Windows systems with manual reboot signoff.",
+    "member_count": 1,
+    "source_payload": {
+      "refresh_type": "Manual",
+      "is_simulated": true
+    }
+  }
+]

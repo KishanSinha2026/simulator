@@ -9,6 +9,8 @@ from app.core.config import get_settings
 from app.providers.cmdb_json import CMDBJsonProvider
 from app.providers.itsm_json import ITSMJsonProvider
 from app.providers.satellite_json import SatelliteJsonProvider
+from app.providers.sccm_json import SCCMJsonProvider
+from app.providers.squad1_json import Squad1JsonProvider
 from app.providers.tenable_json import TenableJsonProvider
 
 logger = logging.getLogger(__name__)
@@ -18,6 +20,8 @@ SUPPORTED_INTEGRATIONS = (
     "cmdb",
     "itsm",
     "satellite",
+    "squad1",
+    "sccm",
 )
 
 JSON_PROVIDER_CLASSES = {
@@ -25,6 +29,8 @@ JSON_PROVIDER_CLASSES = {
     "cmdb": CMDBJsonProvider,
     "itsm": ITSMJsonProvider,
     "satellite": SatelliteJsonProvider,
+    "squad1": Squad1JsonProvider,
+    "sccm": SCCMJsonProvider,
 }
 
 API_PROVIDER_MODULES = {
@@ -43,6 +49,14 @@ API_PROVIDER_MODULES = {
     "satellite": (
         "app.providers.satellite_api",
         "SatelliteAPIProvider",
+    ),
+    "squad1": (
+        "app.providers.squad1_api",
+        "Squad1APIProvider",
+    ),
+    "sccm": (
+        "app.providers.sccm_api",
+        "SCCMAPIProvider",
     ),
 }
 

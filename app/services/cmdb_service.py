@@ -541,9 +541,10 @@ class CMDBService:
                             "source_payload": item.get("source_payload") or item,
                         }
                         if existing is None:
-                            self.repository.create(data)
+                            self.db.add(CMDBServer(**data))
                         else:
-                            self.repository.update(existing, data)
+                            for k, v in data.items():
+                                setattr(existing, k, v)
                         servers_count += 1
                     self.db.commit()
             except Exception:
@@ -574,11 +575,11 @@ class CMDBService:
                         "source_payload": item.get("source_payload") or item,
                     }
                     if existing is None:
-                        self.middleware_repository.create(data)
-                        middleware_count += 1
+                        self.db.add(CMDBMiddleware(**data))
                     else:
-                        self.middleware_repository.update(existing, data)
-                        middleware_count += 1
+                        for k, v in data.items():
+                            setattr(existing, k, v)
+                    middleware_count += 1
                 self.db.commit()
             except Exception:
                 self.db.rollback()
@@ -606,11 +607,11 @@ class CMDBService:
                         "source_payload": item.get("source_payload") or item,
                     }
                     if existing is None:
-                        self.database_repository.create(data)
-                        databases_count += 1
+                        self.db.add(CMDBDatabase(**data))
                     else:
-                        self.database_repository.update(existing, data)
-                        databases_count += 1
+                        for k, v in data.items():
+                            setattr(existing, k, v)
+                    databases_count += 1
                 self.db.commit()
             except Exception:
                 self.db.rollback()

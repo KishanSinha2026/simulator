@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     cmdb_provider: ProviderMode = "json"
     itsm_provider: ProviderMode = "json"
     satellite_provider: ProviderMode = "json"
+    squad1_provider: ProviderMode = "json"
+    sccm_provider: ProviderMode = "json"
 
     # Fixtures and HTTP clients
     fixture_dir: str = "fixtures"
@@ -138,6 +140,22 @@ class Settings(BaseSettings):
     satellite_password: SecretStr | None = None
     satellite_verify_tls: bool = True
 
+    # ---------------------------------------------------------
+    # Squad1 (Vulnerability Lifecycle)
+    # ---------------------------------------------------------
+    squad1_base_url: str = ""
+    squad1_api_key: SecretStr | None = None
+    squad1_verify_tls: bool = True
+
+    # ---------------------------------------------------------
+    # SCCM 2509 (Windows Execution)
+    # ---------------------------------------------------------
+    sccm_base_url: str = ""
+    sccm_username: str = ""
+    sccm_password: SecretStr | None = None
+    sccm_site_code: str = "P01"
+    sccm_verify_tls: bool = True
+
     @field_validator("app_env", "log_level", mode="before")
     @classmethod
     def normalize_text_settings(cls, value: str) -> str:
@@ -151,6 +169,8 @@ class Settings(BaseSettings):
         "cmdb_base_url",
         "itsm_base_url",
         "satellite_base_url",
+        "squad1_base_url",
+        "sccm_base_url",
     )
     @classmethod
     def normalize_base_urls(cls, value: str) -> str:
@@ -210,6 +230,8 @@ class Settings(BaseSettings):
             "cmdb": self.cmdb_provider,
             "itsm": self.itsm_provider,
             "satellite": self.satellite_provider,
+            "squad1": self.squad1_provider,
+            "sccm": self.sccm_provider,
         }
 
         key = integration.strip().lower()

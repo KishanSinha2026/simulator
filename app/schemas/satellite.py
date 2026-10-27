@@ -194,6 +194,20 @@ class SatelliteJobHostResultResponse(BaseModel):
     completed_at: datetime | None = None
 
 
+class SatelliteJobHostRawResponse(BaseModel):
+    """Raw output and provider payload for one host's job result."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    job_run_id: int
+    host_id: int
+    stdout: str | None = None
+    stderr: str | None = None
+    exit_code: int | None = None
+    raw_output: dict[str, Any] | str | None = None
+    source_payload: dict[str, Any] | None = None
+
+
 class SatelliteJobHostResultListResponse(BaseModel):
     """Paginated list of Satellite host results."""
 

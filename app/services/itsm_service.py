@@ -1,5 +1,4 @@
-"""Business logic for BMC Helix ITSM change requests and worklogs."""
-
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -31,6 +30,20 @@ class ITSMService:
         self.worklog_repository = ITSMWorklogRepository(db)
         self.history_repository = ITSMChangeHistoryRepository(db)
         self.provider = get_provider("itsm")
+
+    @staticmethod
+    def _parse_dt(val: Any) -> datetime | None:
+        """Parse datetime string to timezone-aware datetime object."""
+        if not val:
+            return None
+        if isinstance(val, datetime):
+            return val
+        if isinstance(val, str):
+            try:
+                return datetime.fromisoformat(val.replace("Z", "+00:00"))
+            except Exception:
+                return None
+        return None
 
     @staticmethod
     def _validate_schedule(
@@ -365,14 +378,15 @@ class ITSMService:
                             "service_ci": item.get("service_ci"),
                             "description": item.get("description"),
                             "environment": item.get("environment"),
-                            "scheduled_start_at": item.get("scheduled_start_at"),
-                            "scheduled_end_at": item.get("scheduled_end_at"),
+                            "scheduled_start_at": self._parse_dt(item.get("scheduled_start_at")),
+                            "scheduled_end_at": self._parse_dt(item.get("scheduled_end_at")),
                             "source_payload": item.get("source_payload") or item,
                         }
                         if existing is None:
-                            self.repository.create(data)
+                            self.db.add(ITSMChange(**data))
                         else:
-                            self.repository.update(existing, data)
+                            for k, v in data.items():
+                                setattr(existing, k, v)
                         changes_imported += 1
                     self.db.commit()
             except Exception:
@@ -389,7 +403,6 @@ class ITSMService:
                     if change_ref:
                         change = self.repository.get_by_source_id(str(change_ref))
                     if not change:
-                        # Link to first change if any
                         first_change = self.db.query(ITSMChange).first()
                         if first_change:
                             change = first_change
@@ -405,8 +418,11 @@ class ITSMService:
                             "source_payload": item.get("source_payload") or item,
                         }
                         if existing_w is None:
-                            self.worklog_repository.create(wdata)
+                            self.db.add(ITSMWorklog(**wdata))
                             worklogs_imported += 1
+                        else:
+                            for k, v in wdata.items():
+                                setattr(existing_w, k, v)
                 self.db.commit()
             except Exception:
                 self.db.rollback()

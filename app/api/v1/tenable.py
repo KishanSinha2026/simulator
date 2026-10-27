@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.tenable import (
+    TenableFindingCreate,
     TenableFindingListResponse,
     TenableFindingResponse,
     TenableImportResponse,
@@ -65,6 +66,26 @@ def list_findings(
             ip_address=ip_address,
             include_informational=include_informational,
         )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/findings",
+    response_model=TenableFindingResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create or update vulnerability finding",
+)
+def create_finding(
+    payload: TenableFindingCreate,
+    service: TenableService = Depends(get_tenable_service),
+):
+    """Create or idempotently update a vulnerability finding."""
+    try:
+        return service.create_finding(payload)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

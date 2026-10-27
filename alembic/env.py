@@ -9,7 +9,7 @@ from app.db.base import Base
 
 # Import every model module so Alembic discovers its tables.
 # Add new model imports here as integrations are implemented.
-from app.models import tenable, cmdb, itsm, satellite, audit  # noqa: F401
+from app.models import tenable, cmdb, itsm, satellite, audit, squad1, sccm  # noqa: F401
 
 
 config = context.config

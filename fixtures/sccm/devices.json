@@ -1,0 +1,50 @@
+[
+  {
+    "id": "sccm-dev-001",
+    "resource_id": "RES-WIN-1001",
+    "name": "win-app01.indusind.local",
+    "ip_address": "192.0.2.101",
+    "operating_system": "Microsoft Windows Server 2022 Datacenter",
+    "client_active_status": true,
+    "is_client": true,
+    "last_active_time": "2026-10-27T10:00:00Z",
+    "collection_id": "SMS00001",
+    "source_payload": {
+      "domain": "INDUSIND",
+      "client_version": "5.00.9106.1000",
+      "is_simulated": true
+    }
+  },
+  {
+    "id": "sccm-dev-002",
+    "resource_id": "RES-WIN-1002",
+    "name": "win-db01.indusind.local",
+    "ip_address": "192.0.2.102",
+    "operating_system": "Microsoft Windows Server 2019 Standard",
+    "client_active_status": true,
+    "is_client": true,
+    "last_active_time": "2026-10-27T10:15:00Z",
+    "collection_id": "SMS00001",
+    "source_payload": {
+      "domain": "INDUSIND",
+      "client_version": "5.00.9106.1000",
+      "is_simulated": true
+    }
+  },
+  {
+    "id": "sccm-dev-003",
+    "resource_id": "RES-WIN-1003",
+    "name": "win-dmz01.indusind.local",
+    "ip_address": "192.0.2.103",
+    "operating_system": "Microsoft Windows Server 2016 Datacenter",
+    "client_active_status": false,
+    "is_client": true,
+    "last_active_time": "2026-10-20T04:00:00Z",
+    "collection_id": "SMS00002",
+    "source_payload": {
+      "domain": "INDUSIND",
+      "client_version": "5.00.9068.1000",
+      "is_simulated": true
+    }
+  }
+]

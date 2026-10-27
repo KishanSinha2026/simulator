@@ -328,3 +328,198 @@ def test_idempotency_and_duplicate_handling(client: TestClient):
     res_s_imp = client.post("/api/v1/satellite/import")
     assert res_s_imp.status_code == 200, res_s_imp.text
 
+    res_sq_imp = client.post("/api/v1/squad1/import")
+    assert res_sq_imp.status_code == 200, res_sq_imp.text
+
+    res_sccm_imp = client.post("/api/v1/sccm/import")
+    assert res_sccm_imp.status_code == 200, res_sccm_imp.text
+
+
+# =====================================================================
+# 7. Squad1 Vulnerability Lifecycle Tests (BRD 4.2)
+# =====================================================================
+
+def test_squad1_canonical_routes(client: TestClient):
+    """Verify Squad1 vulnerability import, exceptions, and CRUD."""
+    # 1. GET /api/v1/squad1/vulnerabilities
+    res_vulns = client.get("/api/v1/squad1/vulnerabilities")
+    assert res_vulns.status_code == 200, res_vulns.text
+    data_vulns = res_vulns.json()
+    assert "items" in data_vulns
+    assert len(data_vulns["items"]) >= 1
+
+    first_vuln_id = data_vulns["items"][0]["id"]
+
+    # 2. GET /api/v1/squad1/vulnerabilities/{id}
+    res_single = client.get(f"/api/v1/squad1/vulnerabilities/{first_vuln_id}")
+    assert res_single.status_code == 200, res_single.text
+    assert res_single.json()["id"] == first_vuln_id
+
+    # 3. GET /api/v1/squad1/exceptions (BRD 4.2 Exception_ID and Exception_END_Date)
+    res_exc = client.get("/api/v1/squad1/exceptions")
+    assert res_exc.status_code == 200, res_exc.text
+    exc_data = res_exc.json()
+    assert "items" in exc_data
+    assert len(exc_data["items"]) >= 1
+    assert exc_data["items"][0]["exception_id"] is not None
+
+    # 4. POST /api/v1/squad1/vulnerabilities (idempotent create/update)
+    test_vuln_no = f"SQ1-TEST-{uuid.uuid4().hex[:6].upper()}"
+    vuln_payload = {
+        "vulnerability_no": test_vuln_no,
+        "plugin_id": 99999,
+        "target": "192.0.2.99",
+        "vulnerability_name": "Test Weakness",
+        "description": "Test description",
+        "risk_rating": "Medium",
+        "status": "Open",
+    }
+    res_create = client.post("/api/v1/squad1/vulnerabilities", json=vuln_payload)
+    assert res_create.status_code in (200, 201), res_create.text
+    created_id = res_create.json()["id"]
+
+    # Repeat POST with update
+    vuln_payload["description"] = "Updated description"
+    res_dup = client.post("/api/v1/squad1/vulnerabilities", json=vuln_payload)
+    assert res_dup.status_code in (200, 201), res_dup.text
+    assert res_dup.json()["id"] == created_id
+
+    # 5. POST /api/v1/squad1/import
+    res_imp = client.post("/api/v1/squad1/import")
+    assert res_imp.status_code == 200, res_imp.text
+    assert res_imp.json()["records_received"] >= 1
+
+
+# =====================================================================
+# 8. SCCM 2509 Windows Execution Tests (BRD 4.6 & 8.5.5)
+# =====================================================================
+
+def test_sccm_canonical_routes(client: TestClient):
+    """Verify SCCM device activity, collections, deployments, and guarded jobs."""
+    # 1. GET /api/v1/sccm/devices (check ClientActiveStatus readiness)
+    res_devs = client.get("/api/v1/sccm/devices")
+    assert res_devs.status_code == 200, res_devs.text
+    dev_data = res_devs.json()
+    assert "items" in dev_data
+    assert len(dev_data["items"]) >= 1
+
+    first_dev = dev_data["items"][0]
+    dev_id = first_dev["id"]
+    res_id = first_dev["resource_id"]
+
+    # 2. GET /api/v1/sccm/devices/{device_id}
+    res_single = client.get(f"/api/v1/sccm/devices/{dev_id}")
+    assert res_single.status_code == 200, res_single.text
+    assert res_single.json()["id"] == dev_id
+
+    # 3. GET /api/v1/sccm/collections
+    res_cols = client.get("/api/v1/sccm/collections")
+    assert res_cols.status_code == 200, res_cols.text
+    col_data = res_cols.json()
+    assert len(col_data["items"]) >= 1
+    col_id = col_data["items"][0]["collection_id"]
+
+    # 4. GET /api/v1/sccm/deployments
+    res_deps = client.get("/api/v1/sccm/deployments")
+    assert res_deps.status_code == 200, res_deps.text
+    dep_data = res_deps.json()
+    assert len(dep_data["items"]) >= 1
+    assign_id = dep_data["items"][0]["assignment_id"]
+
+    # 5. POST /api/v1/sccm/jobs (launch guarded patch run per BRD 8.5.5)
+    test_run_id = f"RUN-WIN-{uuid.uuid4().hex[:6].upper()}"
+    job_payload = {
+        "run_id": test_run_id,
+        "change_number": "CHG-SIM-WIN-001",
+        "mode": "STANDARD_PATCH",
+        "targets": [
+            {
+                "server_ci_id": "CI-SERVER-001",
+                "resource_id": res_id,
+                "hostname": first_dev["name"],
+            }
+        ],
+        "target_collection_id": col_id,
+        "assignment_id": assign_id,
+        "reboot_policy": "CLIENT_APPROVED",
+    }
+    res_job = client.post("/api/v1/sccm/jobs", json=job_payload)
+    assert res_job.status_code in (200, 201), res_job.text
+    job_data = res_job.json()
+    assert job_data["run_id"] == test_run_id
+    assert job_data["compliant_count"] >= 1
+
+    # 6. GET /api/v1/sccm/jobs/{job_id}
+    res_poll = client.get(f"/api/v1/sccm/jobs/{test_run_id}")
+    assert res_poll.status_code == 200, res_poll.text
+    assert res_poll.json()["run_id"] == test_run_id
+    assert len(res_poll.json()["asset_details"]) >= 1
+
+    # 7. POST /api/v1/sccm/import
+    res_imp = client.post("/api/v1/sccm/import")
+    assert res_imp.status_code == 200, res_imp.text
+    assert res_imp.json()["devices_imported"] >= 1
+
+
+# =====================================================================
+# 9. Extended Endpoints for Existing Modules (Tenable, CMDB, ITSM, Satellite)
+# =====================================================================
+
+def test_extended_endpoints(client: TestClient):
+    """Verify newly added CRUD endpoints across Tenable, CMDB, ITSM, and Satellite."""
+    # 1. Tenable POST /findings
+    t_id = f"tnb-{uuid.uuid4().hex[:6]}"
+    res_t_post = client.post("/api/v1/tenable/findings", json={
+        "source_finding_id": t_id,
+        "plugin_id": 12345,
+        "plugin_name": "Test Finding",
+        "severity": "Medium",
+    })
+    assert res_t_post.status_code in (200, 201), res_t_post.text
+    assert res_t_post.json()["source_finding_id"] == t_id
+
+    # 2. CMDB POST /servers and PATCH /servers/{id}
+    ci_id = f"CI-{uuid.uuid4().hex[:6].upper()}"
+    res_c_post = client.post("/api/v1/cmdb/servers", json={
+        "source_instance_id": ci_id,
+        "ci_name": "test-srv",
+        "ip_address": "192.0.2.88",
+        "status": "Active",
+    })
+    assert res_c_post.status_code in (200, 201), res_c_post.text
+    srv_pk = res_c_post.json()["id"]
+
+    res_c_patch = client.patch(f"/api/v1/cmdb/servers/{srv_pk}", json={
+        "os_version": "9.9",
+    })
+    assert res_c_patch.status_code == 200, res_c_patch.text
+    assert res_c_patch.json()["os_version"] == "9.9"
+
+    # CMDB GET /correlate query param
+    res_corr = client.get("/api/v1/cmdb/correlate?ip_address=192.0.2.88")
+    assert res_corr.status_code == 200, res_corr.text
+
+    # CMDB GET /middleware, /databases, /relationships
+    assert client.get("/api/v1/cmdb/middleware").status_code == 200
+    assert client.get("/api/v1/cmdb/databases").status_code == 200
+    assert client.get("/api/v1/cmdb/relationships").status_code == 200
+
+    # 3. ITSM PATCH /changes/{id}
+    res_chg_list = client.get("/api/v1/itsm/changes")
+    chg_pk = res_chg_list.json()["items"][0]["id"]
+    res_chg_patch = client.patch(f"/api/v1/itsm/changes/{chg_pk}", json={
+        "status": "Scheduled",
+    })
+    assert res_chg_patch.status_code == 200, res_chg_patch.text
+    assert res_chg_patch.json()["status"] == "Scheduled"
+
+    # 4. Satellite POST /hosts
+    sat_host_id = f"sat-{uuid.uuid4().hex[:6]}"
+    res_s_post = client.post("/api/v1/satellite/hosts", json={
+        "source_host_id": sat_host_id,
+        "name": f"{sat_host_id}.indusind.local",
+        "ip_address": "192.0.2.77",
+    })
+    assert res_s_post.status_code in (200, 201), res_s_post.text
+    assert res_s_post.json()["source_host_id"] == sat_host_id
+

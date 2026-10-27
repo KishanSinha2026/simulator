@@ -20,6 +20,7 @@ from app.schemas.itsm import (
     ITSMChangeCreate,
     ITSMChangeListResponse,
     ITSMChangeResponse,
+    ITSMChangeUpdate,
     ITSMImportResponse,
     ITSMWorklogCreate,
     ITSMWorklogListResponse,
@@ -122,6 +123,37 @@ def get_change(
             detail="ITSM change not found",
         )
     return change
+
+
+@router.patch(
+    "/changes/{change_id}",
+    response_model=ITSMChangeResponse,
+    summary="Update change request attributes or status",
+)
+def update_change(
+    change_id: int,
+    payload: ITSMChangeUpdate,
+    service: ITSMService = Depends(get_itsm_service),
+):
+    """Update selected attributes or status of a change request."""
+    if change_id < 1:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="change_id must be greater than zero",
+        )
+    try:
+        updated = service.update_change(change_id, payload)
+        if updated is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ITSM change not found",
+            )
+        return updated
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(

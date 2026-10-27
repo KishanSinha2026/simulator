@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import cmdb, health, itsm, satellite, tenable
+from app.api.v1 import cmdb, health, itsm, satellite, sccm, squad1, tenable
 from app.core.config import get_settings
 
 
@@ -60,6 +60,8 @@ for router in (
     cmdb.router,
     itsm.router,
     satellite.router,
+    squad1.router,
+    sccm.router,
 ):
     app.include_router(
         router,

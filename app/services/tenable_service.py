@@ -310,15 +310,28 @@ class TenableService:
         # Also import provider scans if available
         if hasattr(self.provider, "list_scans"):
             try:
-                for s in self.provider.list_scans(limit=50000):
-                    scan_id = str(s.get("id") or s.get("source_scan_id") or "")
-                    if scan_id and not self.scan_repository.get_by_source_id(scan_id):
-                        self.scan_repository.create({
-                            "source_scan_id": scan_id,
-                            "name": s.get("name", f"Scan {scan_id}"),
-                            "status": s.get("status", "completed"),
-                            "source_payload": s,
-                        })
+                scans_batch = self.provider.list_scans(limit=min(limit, 500))
+                scan_ids = [
+                    str(s.get("id") or s.get("source_scan_id") or "").strip()
+                    for s in scans_batch
+                    if str(s.get("id") or s.get("source_scan_id") or "").strip()
+                ]
+                existing_scan_ids = {
+                    s[0]
+                    for s in self.db.query(TenableScan.source_scan_id)
+                    .filter(TenableScan.source_scan_id.in_(scan_ids))
+                    .all()
+                }
+                for s in scans_batch:
+                    scan_id = str(s.get("id") or s.get("source_scan_id") or "").strip()
+                    if scan_id and scan_id not in existing_scan_ids:
+                        self.db.add(TenableScan(
+                            source_scan_id=scan_id,
+                            name=s.get("name", f"Scan {scan_id}"),
+                            status=s.get("status", "completed"),
+                            source_payload=s,
+                        ))
+                        existing_scan_ids.add(scan_id)
                 self.db.commit()
             except Exception:
                 self.db.rollback()
