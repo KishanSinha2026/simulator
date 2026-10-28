@@ -446,9 +446,6 @@ The table below lists the main public operations. The generated OpenAPI document
 
 ---
 
-### BRD endpoint alignment and readiness
-
-The Tenable finding response exposes all 54 Appendix A labels under `brd_54_fields`; the scan response separately exposes the BRD `scanResult` metadata under `brd_scan_fields`. CMDB inventory fields, the ITSM 19-field create payload, and Satellite job result fields are mapped to normalized fields or retained in `source_payload`. Middleware `Username` has a database column and migration; server `Aging` is derived from the last patch timestamp. The Satellite S6 raw-output call is implemented in the API provider. The presence of a VPM360 route does not mean the corresponding vendor operation is enabled: Satellite job launch remains simulated, and several Helix approval, update, worklog, and closure interfaces await client contract confirmation. The [endpoint coverage note](docs/BRD_INTEGRATION_ENDPOINT_COVERAGE.md) identifies these boundaries and lists the BRD vendor paths.
 
 ## 20k+ Dataset Throughput & Idempotency
 
