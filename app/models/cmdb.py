@@ -154,6 +154,10 @@ class CMDBMiddleware(Base):
         String(255), nullable=True
     )
 
+    username: Mapped[str | None] = mapped_column(
+        String(255), nullable=True
+    )
+
     ip_address: Mapped[str | None] = mapped_column(
         String(45), nullable=True, index=True
     )

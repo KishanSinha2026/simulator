@@ -200,7 +200,7 @@ class SatelliteJobHostRawResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     job_run_id: int
-    host_id: int
+    host_id: int | str
     stdout: str | None = None
     stderr: str | None = None
     exit_code: int | None = None

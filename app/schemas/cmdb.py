@@ -1,9 +1,9 @@
 """Pydantic schemas for BMC Helix CMDB configuration items."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class CMDBSchemaBase(BaseModel):
@@ -177,6 +177,14 @@ class CMDBServerResponse(CMDBServerBase):
     created_at: datetime
     updated_at: datetime
 
+    @computed_field(description="Calendar days since Last Patched Date; null when that date is unavailable")
+    @property
+    def aging(self) -> int | None:
+        """Calculate the BRD Aging value from the last patch timestamp."""
+        if self.last_patch_updated_at is None:
+            return None
+        return (date.today() - self.last_patch_updated_at.date()).days
+
 
 class CMDBServerListResponse(BaseModel):
     """Paginated list of CMDB servers."""
@@ -197,6 +205,7 @@ class CMDBMiddlewareBase(CMDBSchemaBase):
     ci_name: str | None = Field(default=None, max_length=255)
     server_instance_id: str | None = Field(default=None, max_length=255)
     hostname: str | None = Field(default=None, max_length=255)
+    username: str | None = Field(default=None, max_length=255)
     ip_address: str | None = Field(default=None, max_length=45)
     location: str | None = Field(default=None, max_length=255)
     application_name: str | None = Field(default=None, max_length=255)
@@ -226,6 +235,7 @@ class CMDBMiddlewareUpdate(CMDBSchemaBase):
     ci_name: str | None = None
     server_instance_id: str | None = None
     hostname: str | None = None
+    username: str | None = None
     ip_address: str | None = None
     location: str | None = None
     application_name: str | None = None
@@ -312,6 +322,14 @@ class CMDBDatabaseResponse(CMDBDatabaseBase):
     id: int
     created_at: datetime
     updated_at: datetime
+
+    @computed_field(description="Calendar days since Last Patched Date; null when that date is unavailable")
+    @property
+    def aging(self) -> int | None:
+        """Calculate the BRD database Aging value from its last patch timestamp."""
+        if self.last_patch_updated_at is None:
+            return None
+        return (date.today() - self.last_patch_updated_at.date()).days
 
 
 class CMDBDatabaseListResponse(BaseModel):

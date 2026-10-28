@@ -40,6 +40,11 @@ def get_tenable_service(
     "/findings",
     response_model=TenableFindingListResponse,
     summary="List vulnerability findings",
+    description=(
+        "Returns normalized findings and `brd_54_fields`, which lists the "
+        "54 exact Appendix A Tenable analysis fields. These fields belong "
+        "to the finding-details (`/rest/analysis`) source."
+    ),
 )
 def list_findings(
     limit: int = Query(default=100, ge=1, le=50000, description="Max records to return"),
@@ -122,6 +127,11 @@ def get_finding(
     "/scans",
     response_model=TenableScanListResponse,
     summary="List scanner executions",
+    description=(
+        "Returns scan execution metadata. `brd_scan_fields` lists the "
+        "scanResult fields supplied by the BRD; this scan metadata set is "
+        "separate from the 54 finding-detail fields."
+    ),
 )
 def list_scans(
     limit: int = Query(default=100, ge=1, le=50000, description="Max scans to return"),

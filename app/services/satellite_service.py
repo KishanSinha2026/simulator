@@ -394,19 +394,40 @@ class SatelliteService:
         job_run_id: int,
         host_id: int | str,
     ) -> dict[str, Any] | None:
-        """Return raw per-host output retained with the job result."""
+        """Return raw per-host output from storage or the Satellite S6 API."""
         result = self.get_host_result(job_run_id, host_id)
-        if result is None:
+        if result is not None:
+            payload = result.source_payload or {}
+            return {
+                "job_run_id": result.job_run_id,
+                "host_id": result.host_id,
+                "stdout": payload.get("stdout", result.result_text),
+                "stderr": payload.get("stderr"),
+                "exit_code": payload.get("exit_code"),
+                "raw_output": payload.get("raw_output", result.result_text),
+                "source_payload": payload,
+            }
+
+        fetch_raw = getattr(self.provider, "get_host_job_raw_output", None)
+        if not callable(fetch_raw):
             return None
 
-        payload = result.source_payload or {}
+        payload = fetch_raw(str(job_run_id), str(host_id))
+        if not isinstance(payload, dict):
+            raise RuntimeError("Satellite raw output response must be a JSON object.")
+
+        try:
+            response_host_id: int | str = int(host_id)
+        except (TypeError, ValueError):
+            response_host_id = str(host_id)
+
         return {
-            "job_run_id": result.job_run_id,
-            "host_id": result.host_id,
-            "stdout": payload.get("stdout", result.result_text),
+            "job_run_id": job_run_id,
+            "host_id": response_host_id,
+            "stdout": payload.get("stdout"),
             "stderr": payload.get("stderr"),
             "exit_code": payload.get("exit_code"),
-            "raw_output": payload.get("raw_output", result.result_text),
+            "raw_output": payload.get("raw_output", payload),
             "source_payload": payload,
         }
 

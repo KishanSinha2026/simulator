@@ -1,5 +1,6 @@
 """Business logic for BMC Helix CMDB configuration items."""
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -38,6 +39,36 @@ class CMDBService:
         self.database_repository = CMDBDatabaseRepository(db)
         self.relationship_repository = CMDBRelationshipRepository(db)
         self.provider = get_provider("cmdb")
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> datetime | None:
+        """Parse BRD date/time inputs without discarding the original value."""
+        if isinstance(value, datetime):
+            return value
+        if not isinstance(value, str) or not value.strip():
+            return None
+        source = value.strip()
+        for candidate in (source, source.replace("Z", "+00:00")):
+            try:
+                return datetime.fromisoformat(candidate)
+            except ValueError:
+                pass
+        for fmt in ("%d-%b-%y", "%d-%b-%Y", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(source, fmt)
+            except ValueError:
+                pass
+        return None
+
+    @staticmethod
+    def _parse_integer(value: Any) -> int | None:
+        """Normalize numeric counts while preserving unparseable source in raw payload."""
+        if value is None or isinstance(value, bool):
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _validate_pagination(limit: int, offset: int) -> None:
@@ -537,6 +568,18 @@ class CMDBService:
                             "os_type": item.get("os_type"),
                             "os_version": item.get("os_version"),
                             "location": item.get("location"),
+                            "is_virtual": item.get("is_virtual"),
+                            "internet_facing": item.get("internet_facing"),
+                            "virtual_system_type": item.get("virtual_system_type"),
+                            "asset_type": item.get("asset_type"),
+                            "product_name": item.get("product_name"),
+                            "server_type": item.get("server_type"),
+                            "operating_system": item.get("operating_system"),
+                            "risk_classification": item.get("risk_classification"),
+                            "target_date": item.get("target_date"),
+                            "last_patch_updated_at": self._parse_datetime(
+                                item.get("last_patch_updated_at")
+                            ),
                             "status": item.get("status"),
                             "source_payload": item.get("source_payload") or item,
                         }
@@ -564,6 +607,7 @@ class CMDBService:
                         "ci_name": item.get("ci_name"),
                         "server_instance_id": item.get("server_instance_id"),
                         "hostname": item.get("hostname"),
+                        "username": item.get("username"),
                         "ip_address": item.get("ip_address"),
                         "location": item.get("location"),
                         "application_name": item.get("application_name"),
@@ -571,6 +615,14 @@ class CMDBService:
                         "it_application_owner": item.get("it_application_owner"),
                         "middleware_type": item.get("middleware_type"),
                         "version": item.get("version"),
+                        "recommended_version": item.get("recommended_version"),
+                        "environment": item.get("environment"),
+                        "production_status": item.get("production_status"),
+                        "core_count": self._parse_integer(item.get("core_count")),
+                        "os_type": item.get("os_type"),
+                        "latest_patch_release_date": item.get("latest_patch_release_date"),
+                        "end_of_support_date": item.get("end_of_support_date"),
+                        "target_date": item.get("target_date"),
                         "status": item.get("status"),
                         "source_payload": item.get("source_payload") or item,
                     }
@@ -603,6 +655,13 @@ class CMDBService:
                         "asset_owner": item.get("asset_owner"),
                         "database_type": item.get("database_type"),
                         "version": item.get("version"),
+                        "environment": item.get("environment"),
+                        "production_status": item.get("production_status"),
+                        "risk_classification": item.get("risk_classification"),
+                        "last_patch_updated_at": self._parse_datetime(
+                            item.get("last_patch_updated_at")
+                        ),
+                        "target_date": item.get("target_date"),
                         "status": item.get("status"),
                         "source_payload": item.get("source_payload") or item,
                     }

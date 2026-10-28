@@ -8,6 +8,10 @@ Create Date: 2026-10-26 15:26:07.544990
 
 from collections.abc import Sequence
 
+from alembic import op
+
+from app.db.base import Base
+from app import models  # noqa: F401 - registers integration tables on Base.metadata
 
 
 
@@ -19,10 +23,10 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Apply this schema change."""
-    pass
+    """Create the initial VPM360 schema for all registered integrations."""
+    Base.metadata.create_all(bind=op.get_bind(), checkfirst=True)
 
 
 def downgrade() -> None:
-    """Reverse this schema change when safe."""
-    pass
+    """Drop the schema created by this initial revision."""
+    Base.metadata.drop_all(bind=op.get_bind(), checkfirst=True)

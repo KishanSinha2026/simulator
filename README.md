@@ -1,8 +1,8 @@
 # VPM360 Integration Simulator
 
-Enterprise vulnerability management and remediation integration simulator for **IndusInd Bank VPM360**, implementing the full specifications defined in **BRD, HLD & TDD Section 4**.
+Enterprise vulnerability management and remediation integration simulator for **IndusInd Bank VPM360**, mapping the workflows in **BRD, HLD & TDD Section 4**. Vendor contracts and production-specific controls that the BRD leaves pending remain subject to client confirmation.
 
-The simulator provides unified integration endpoints for **Tenable**, **BMC Helix CMDB**, **BMC Helix ITSM**, **Red Hat Satellite**, **Squad1**, and **Microsoft SCCM 2509**, capable of switching between live enterprise vendor APIs and local PostgreSQL / JSON fixture simulation with full idempotency and high-throughput handling (up to 50,000 records).
+The simulator provides unified integration endpoints for **Tenable**, **BMC Helix CMDB**, **BMC Helix ITSM**, **Red Hat Satellite**, **Squad1**, and **Microsoft SCCM 2509**. Integrations can use configured vendor APIs or local PostgreSQL / JSON fixtures; a public workflow route may still be simulated when execution controls or client API contracts are pending.
 
 ---
 
@@ -29,7 +29,7 @@ The simulator provides unified integration endpoints for **Tenable**, **BMC Heli
 
 ## Architectural Overview
 
-- **Single-Route Architecture**: Eliminates redundant or separate routes for API vs JSON. Callers invoke one canonical endpoint (e.g. `/api/v1/tenable/findings`). If external vendor APIs are configured, the service proxies remote requests; otherwise, it operates against local PostgreSQL storage and JSON simulation fixtures.
+- **Single-Route Architecture**: Callers invoke one VPM360 endpoint (e.g. `/api/v1/tenable/findings`) for the supported workflow. Depending on the integration and configured provider, an operation may use an external API, local PostgreSQL, or JSON fixtures. BRD-pending vendor operations are not treated as live integrations until the client confirms their contracts.
 - **Auto-Synchronization**: Automatically imports and initializes baseline records from fixtures or remote sources into PostgreSQL if target tables are empty.
 - **High-Performance Caching & Batch Ingestion**: File-modification (`st_mtime`) validated cache prevents re-parsing large JSON records on repeated calls. Ingestion batches in 500-item chunks with atomic commits.
 - **Strict Idempotency**: Duplicate POST requests or repeated `/import` triggers merge updates smoothly based on natural source keys (`source_finding_id`, `source_instance_id`, `source_change_id`, `source_host_id`, `source_template_id`, `vulnerability_no`, `source_device_id`) rather than throwing HTTP 409, 422, or 500 errors.
@@ -398,7 +398,7 @@ SCCM 2509 executes Windows patching as specified in BRD Section 4.6 (Table 20) a
 
 ## Canonical BRD Route Catalog
 
-The simulator exposes **39 canonical operations** across all 6 integrations with zero route duplication.
+The table below lists the main public operations. The generated OpenAPI document at `/openapi.json` is the authoritative complete route list. VPM360 routes are distinct from the vendor routes its providers call; see the [BRD endpoint coverage and readiness notes](docs/BRD_INTEGRATION_ENDPOINT_COVERAGE.md) for both layers and client dependencies.
 
 | Integration | Method | Endpoint Path | Function / BRD Reference |
 |---|---|---|---|
@@ -427,11 +427,11 @@ The simulator exposes **39 canonical operations** across all 6 integrations with
 | **Satellite**| `GET` | `/api/v1/satellite/hosts` | List Satellite managed hosts (supports `limit=50000`, BRD S1) |
 | | `POST` | `/api/v1/satellite/hosts` | Create or update managed host |
 | | `GET` | `/api/v1/satellite/job-templates` | List approved Ansible job templates (BRD S2) |
-| | `POST` | `/api/v1/satellite/jobs` | Launch an approved job invocation (BRD S3) |
-| | `GET` | `/api/v1/satellite/jobs/{id}` | Retrieve job invocation status (BRD S4) |
-| | `GET` | `/api/v1/satellite/jobs/{id}/hosts/{h_id}` | Retrieve host result for job (BRD S5) |
-| | `GET` | `/api/v1/satellite/jobs/{id}/hosts/{h_id}/raw`| Retrieve raw output for host execution (BRD S6) |
-| | `POST` | `/api/v1/satellite/jobs/{id}/cancel` | Cancel an active job invocation (BRD S7) |
+| | `POST` | `/api/v1/satellite/jobs` | Record a simulated job request; the public route does not launch a remote patch job (BRD S3) |
+| | `GET` | `/api/v1/satellite/jobs/{id}` | Read the VPM360 stored job record (BRD S4) |
+| | `GET` | `/api/v1/satellite/jobs/{id}/hosts/{h_id}` | Read a stored per-host job result (BRD S5) |
+| | `GET` | `/api/v1/satellite/jobs/{id}/hosts/{h_id}/raw` | Read stored raw output or request the provider's S6 raw output in API mode |
+| | `POST` | `/api/v1/satellite/jobs/{id}/cancel` | Cancel a pending VPM360 simulated job (BRD S7); remote cancellation is not wired to this route |
 | | `POST` | `/api/v1/satellite/import` | Synchronize hosts and job templates |
 | **Squad1** | `GET` | `/api/v1/squad1/vulnerabilities` | List vulnerabilities (supports `limit=50000`, BRD 4.2) |
 | | `POST` | `/api/v1/squad1/vulnerabilities` | Ingest or update a vulnerability finding |
@@ -445,6 +445,10 @@ The simulator exposes **39 canonical operations** across all 6 integrations with
 | | `POST` | `/api/v1/sccm/import` | Synchronize SCCM inventory and deployment states |
 
 ---
+
+### BRD endpoint alignment and readiness
+
+The Tenable finding response exposes all 54 Appendix A labels under `brd_54_fields`; the scan response separately exposes the BRD `scanResult` metadata under `brd_scan_fields`. CMDB inventory fields, the ITSM 19-field create payload, and Satellite job result fields are mapped to normalized fields or retained in `source_payload`. Middleware `Username` has a database column and migration; server `Aging` is derived from the last patch timestamp. The Satellite S6 raw-output call is implemented in the API provider. The presence of a VPM360 route does not mean the corresponding vendor operation is enabled: Satellite job launch remains simulated, and several Helix approval, update, worklog, and closure interfaces await client contract confirmation. The [endpoint coverage note](docs/BRD_INTEGRATION_ENDPOINT_COVERAGE.md) identifies these boundaries and lists the BRD vendor paths.
 
 ## 20k+ Dataset Throughput & Idempotency
 
@@ -524,7 +528,7 @@ TENABLE_MAX_SCAN_RESULTS=50000
 
 ### Database Setup & Migrations
 
-Ensure PostgreSQL is accessible, then apply the migrations or start the application (which automatically ensures all tables are created):
+Ensure PostgreSQL is accessible, then apply the Alembic migration to create the registered VPM360 integration tables:
 
 ```bash
 # Run database schema migrations
@@ -546,14 +550,16 @@ Interactive API documentation will be available at:
 
 ### Building the FastAPI Docker Image
 
-The root `Dockerfile` builds only the FastAPI/Uvicorn service. Build and start it with a reachable PostgreSQL database:
+The root `Dockerfile` builds the FastAPI/Uvicorn service. `compose.yaml` starts it with a separate PostgreSQL 16 container, waits for PostgreSQL, and applies Alembic migrations before starting the API. Set `POSTGRES_PASSWORD` before starting (keep it in your deployment secret store in AWS):
 
-```bash
-docker build -t vpm360-api .
-docker run --rm -p 8000:8000 -e DATABASE_URL="postgresql+psycopg://USER:PASSWORD@DB_HOST:5432/DB_NAME" vpm360-api
+```powershell
+$env:POSTGRES_PASSWORD = "Use-A-Strong-Alphanumeric-Secret"
+docker compose -f compose.yaml up --build -d
 ```
 
-The container binds Uvicorn to `0.0.0.0` and uses the hosting platform's `PORT` value when supplied (otherwise port `8000`). Configure the production database URL as a host secret/environment variable, then run `alembic upgrade head` as the host's release/migration command before serving requests. Do not include `.env` in the image or commit production credentials.
+The API is published on port `8000`; PostgreSQL is published on host port `5433` (container port `5432`). The API connects to PostgreSQL over the private Compose network. Set `API_HOST_PORT` or `POSTGRES_HOST_PORT` to change the host-side ports. For AWS EC2 or another Docker host, allow inbound traffic to the API port only; keep PostgreSQL private and do not expose its host port publicly. Use an AWS-managed database for production data durability. Compose is for Docker hosts; ROSA deployments use OpenShift resources instead of Docker Compose.
+
+The API readiness check is `/api/v1/ready`; Swagger is `/docs`. The Compose database uses a named volume so its data survives container restarts. Do not include `.env` in the image or commit production credentials.
 
 After the image is deployed to an always-on container host, set the Streamlit Cloud `API_BASE_URL` secret to that service's public URL ending in `/api/v1`. The Streamlit Cloud app URL itself is not the FastAPI endpoint.
 

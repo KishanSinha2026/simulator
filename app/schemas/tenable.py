@@ -8,7 +8,49 @@ from pydantic import (
     ConfigDict,
     Field,
     computed_field,
+    create_model,
     field_validator,
+)
+from app.providers.tenable_normalizer import TENABLE_BRD_54_FIELDS
+
+
+TENABLE_BRD_SCAN_RESULT_FIELDS: tuple[str, ...] = (
+    "id",
+    "name",
+    "description",
+    "status",
+    "details",
+    "resultType",
+    "startTime",
+    "finishtime",
+    "scanduration",
+    "repository",
+)
+
+
+def _brd_fields_schema(model_name: str, labels: tuple[str, ...]) -> type[BaseModel]:
+    """Build a Swagger-visible object schema with the exact BRD field labels."""
+    definitions = {
+        f"field_{index:02d}": (
+            Any | None,
+            Field(default=None, alias=label, description=f"BRD source field: {label}"),
+        )
+        for index, label in enumerate(labels, start=1)
+    }
+    return create_model(
+        model_name,
+        __config__=ConfigDict(extra="allow"),
+        **definitions,
+    )
+
+
+TenableBRD54Fields = _brd_fields_schema(
+    "TenableBRD54Fields",
+    TENABLE_BRD_54_FIELDS,
+)
+TenableBRDScanResultFields = _brd_fields_schema(
+    "TenableBRDScanResultFields",
+    TENABLE_BRD_SCAN_RESULT_FIELDS,
 )
 
 
@@ -115,15 +157,18 @@ class TenableFindingResponse(TenableFindingBase):
 
     @computed_field
     @property
-    def brd_54_fields(self) -> dict[str, Any]:
+    def brd_54_fields(self) -> TenableBRD54Fields:
         """Return the 54 exact BRD field labels and received values."""
         payload = self.source_payload or {}
         snapshot = payload.get("_brd_54_fields")
 
         if isinstance(snapshot, dict):
-            return snapshot
+            return TenableBRD54Fields.model_validate(snapshot)
 
-        return {}
+        raw_record = payload.get("raw_record")
+        if isinstance(raw_record, dict):
+            return TenableBRD54Fields.model_validate(raw_record)
+        return TenableBRD54Fields()
 
     @computed_field
     @property
@@ -200,6 +245,13 @@ class TenableScanResponse(TenableScanBase):
     id: int
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def brd_scan_fields(self) -> TenableBRDScanResultFields:
+        """Return only the scan metadata named on the BRD scanResult route."""
+        payload = self.source_payload or {}
+        return TenableBRDScanResultFields.model_validate(payload)
 
 
 class TenableScanListResponse(BaseModel):

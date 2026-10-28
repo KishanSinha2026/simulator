@@ -331,6 +331,20 @@ class SatelliteAPIProvider:
             f"/api/job_invocations/{job_id}/hosts/{host}",
         )
 
+    def get_host_job_raw_output(
+        self,
+        job_run_id: str | int,
+        host_id: str | int,
+    ) -> dict[str, Any]:
+        """Retrieve optional raw output for one host (BRD Satellite S6)."""
+        job_id = self._encode_identifier(job_run_id)
+        host = self._encode_identifier(host_id)
+
+        return self._request(
+            "GET",
+            f"/api/job_invocations/{job_id}/hosts/{host}/raw",
+        )
+
     def launch_job(
         self,
         *,

@@ -81,7 +81,9 @@ class ITSMChangeBase(BaseModel):
 
 
 class ITSMChangeCreate(ITSMChangeBase):
-    """Schema for creating a simulated ITSM change request."""
+    """BRD's 19-field create payload; Helix assigns the change identifier."""
+
+    source_change_id: str | None = None
 
 
 class ITSMChangeUpdate(BaseModel):

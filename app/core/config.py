@@ -104,6 +104,9 @@ class Settings(BaseSettings):
     cmdb_namespace: str = "BMC.CORE"
     cmdb_server_class: str = "BMC_ComputerSystem"
     cmdb_ip_endpoint_class: str = "BMC_IPEndpoint"
+    # The BRD gives inventory dictionaries but no concrete CI class names.
+    cmdb_middleware_class: str = ""
+    cmdb_database_class: str = ""
 
     # Must be confirmed by the IndusInd CMDB team before graph traversal.
     cmdb_relationship_class: str = ""

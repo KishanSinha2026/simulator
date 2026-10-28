@@ -379,21 +379,51 @@ class CMDBAPIProvider:
             or item.get("instanceId")
             or item.get("InstanceId")
             or item.get("id")
+            or cls._attribute(attributes, "CMDB Instance ID", "InstanceId")
         )
+
+        last_patched = cls._attribute(
+            attributes,
+            "Last Patched Date",
+            "Last Patch Updated Date & Time",
+            "LastPatchUpdatedAt",
+        )
+        deleted = cls._attribute(attributes, "MarkAsDeleted", "Asset_IsDeleted")
+        status = cls._attribute(
+            attributes, "Status", "AssetLifecycleStatus", "Operational Status"
+        )
+        if isinstance(deleted, bool):
+            status = "Inactive" if deleted else (status or "Active")
+        elif isinstance(deleted, str):
+            normalized_deleted = deleted.strip().casefold()
+            if normalized_deleted in {"yes", "true", "1", "deleted"}:
+                status = "Inactive"
+            elif normalized_deleted in {"no", "false", "0", "active"}:
+                status = status or "Active"
+
+        # Keep source date formats intact in source_payload. The normalized
+        # value is parsed by CMDBService before it is written to a DateTime column.
 
         return {
             "source_instance_id": (
                 str(instance_id) if instance_id is not None else None
             ),
             "ci_name": cls._attribute(
-                attributes, "Name", "InstanceName", "CIName"
+                attributes,
+                "Name",
+                "InstanceName",
+                "CIName",
+                "CI Name*",
+                "CMDB CI",
             ),
             "dns_host_name": cls._attribute(
                 attributes, "HostName", "DNSHostName"
             ),
+            "hostname": cls._attribute(attributes, "HostName", "Hostname", "DNSHostName"),
             "ip_address": cls._attribute(
                 attributes,
                 "Address",
+                "IP",
                 "IPAddress",
                 "IP_Address",
                 "PrimaryIPAddress",
@@ -402,33 +432,58 @@ class CMDBAPIProvider:
                 attributes, "ApplicationName", "ITApplicationName"
             ),
             "asset_owner": cls._attribute(
-                attributes, "AssetOwner", "OwnerName"
+                attributes,
+                "IBL_SPOC/Assest Owner",
+                "Assest Owner",
+                "Asset Owner",
+                "AssetOwner",
+                "OwnerName",
             ),
             "it_application_owner": cls._attribute(
                 attributes, "ITApplicationOwner", "ApplicationOwner"
             ),
             "system_environment": cls._attribute(
-                attributes, "SystemEnvironment", "Environment"
+                attributes, "System Environment", "SystemEnvironment"
             ),
             "production_status": cls._attribute(
-                attributes, "ProductionStatus"
+                attributes, "Prod/Non Prod", "Prod Non Prod", "ProductionStatus"
             ),
             "os_type": cls._attribute(
-                attributes, "OSType", "OperatingSystem",
-                "OperatingSystemName",
+                attributes, "OS Type", "OSType"
             ),
             "os_version": cls._attribute(
                 attributes, "OSVersion", "OperatingSystemVersion"
             ),
+            "is_virtual": cls._attribute(attributes, "is Virtual", "IsVirtual"),
+            "internet_facing": cls._attribute(attributes, "Internet Facing", "InternetFacing"),
+            "virtual_system_type": cls._attribute(attributes, "Virtual System Type", "VirtualSystemType"),
+            "asset_type": cls._attribute(attributes, "IBL_Asset_Type", "AssetType"),
+            "product_name": cls._attribute(attributes, "Product Name", "ProductName"),
+            "server_type": cls._attribute(attributes, "IBL_Server_Type", "ServerType"),
+            "operating_system": cls._attribute(attributes, "IBL_Operating_System", "OperatingSystem"),
+            "risk_classification": cls._attribute(attributes, "IBL_RiskClassification__", "RiskClassification"),
+            "target_date": cls._attribute(attributes, "Target Date", "TargetDate"),
+            "last_patch_updated_at": last_patched,
+            "aging": cls._attribute(attributes, "Aging", "Ageing"),
+            "username": cls._attribute(attributes, "Username", "User Name"),
+            "middleware_type": cls._attribute(attributes, "Technology", "MiddlewareType"),
+            "version": cls._attribute(
+                attributes,
+                "Installed Version",
+                "IBL_DB_Version",
+                "DB Version",
+                "Version",
+            ),
+            "recommended_version": cls._attribute(attributes, "Recommended update version", "RecommendedVersion"),
+            "environment": cls._attribute(attributes, "Environment"),
+            "core_count": cls._attribute(attributes, "CORE", "CoreCount"),
+            "latest_patch_release_date": cls._attribute(attributes, "Latest Patch Release Date"),
+            "end_of_support_date": cls._attribute(attributes, "End of suppport date", "End of support date", "EndOfSupportDate"),
+            "database_type": cls._attribute(attributes, "Technology", "DatabaseType"),
             "location": cls._attribute(
                 attributes, "Site", "Location", "PhysicalLocation"
             ),
-            "status": cls._attribute(
-                attributes,
-                "MarkAsDeleted",
-                "Status",
-                "AssetLifecycleStatus",
-            ),
+            "status": status,
             "source_payload": item,
         }
 
@@ -475,6 +530,44 @@ class CMDBAPIProvider:
             self._normalize_instance(item)
             for item in self._extract_instances(data)
         ]
+
+    def list_middleware(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Read middleware inventory using the client-confirmed CMDB class."""
+        settings = get_settings()
+        class_name = settings.cmdb_middleware_class.strip()
+        if not class_name:
+            raise ValueError(
+                "CMDB_MIDDLEWARE_CLASS must be confirmed by the CMDB team before importing middleware."
+            )
+        records = self.list_instances(class_name=class_name, limit=limit, offset=offset)
+        if filters:
+            records = [record for record in records if all(record.get(k) == v for k, v in filters.items())]
+        return records
+
+    def list_databases(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Read database inventory using the client-confirmed CMDB class."""
+        settings = get_settings()
+        class_name = settings.cmdb_database_class.strip()
+        if not class_name:
+            raise ValueError(
+                "CMDB_DATABASE_CLASS must be confirmed by the CMDB team before importing databases."
+            )
+        records = self.list_instances(class_name=class_name, limit=limit, offset=offset)
+        if filters:
+            records = [record for record in records if all(record.get(k) == v for k, v in filters.items())]
+        return records
 
     def walk_relationships(
         self,

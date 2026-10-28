@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -115,6 +116,10 @@ class ITSMService:
     def create_change(self, payload: ITSMChangeCreate) -> ITSMChange:
         """Create a simulated change request in PostgreSQL."""
         data = payload.model_dump()
+        if not data.get("source_payload"):
+            data["source_payload"] = payload.model_dump(
+                exclude={"source_change_id", "source_payload"}
+            )
 
         self._validate_schedule(
             data.get("scheduled_start_at"),
@@ -122,6 +127,9 @@ class ITSMService:
         )
 
         source_id = data.get("source_change_id")
+        if not source_id:
+            source_id = f"LOCAL-{uuid4().hex}"
+            data["source_change_id"] = source_id
         try:
             if source_id:
                 existing = self.repository.get_by_source_id(source_id)

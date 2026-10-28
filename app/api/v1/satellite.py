@@ -112,7 +112,7 @@ def list_job_templates(
 @router.post(
     "/jobs",
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Launch job execution (BRD S3)",
+    summary="S3 — Record simulated job request (remote execution is not enabled)",
 )
 def launch_job(
     payload: SatelliteJobLaunchRequest,
@@ -144,7 +144,7 @@ def launch_job(
 @router.get(
     "/jobs/{job_run_id}",
     response_model=SatelliteJobRunResponse,
-    summary="Get job run status and summary (BRD S4)",
+    summary="S4 — Get job invocation status and summary",
 )
 def get_job_run(
     job_run_id: int,
@@ -169,7 +169,7 @@ def get_job_run(
 @router.get(
     "/jobs/{job_run_id}/hosts/{host_id}",
     response_model=SatelliteJobHostResultResponse,
-    summary="Get per-host job result (BRD S5)",
+    summary="S5 — Get one host's job result",
 )
 def get_host_job_result(
     job_run_id: int,
@@ -193,7 +193,7 @@ def get_host_job_result(
 @router.get(
     "/jobs/{job_run_id}/hosts/{host_id}/raw",
     response_model=SatelliteJobHostRawResponse,
-    summary="Get raw per-host job output (BRD S6)",
+    summary="S6 — Get one host's raw job output",
 )
 def get_host_job_raw_output(
     job_run_id: int,
@@ -206,8 +206,6 @@ def get_host_job_raw_output(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="job_run_id must be positive and host_id cannot be blank",
         )
-    if service.get_job_run(job_run_id) is None:
-        raise HTTPException(status_code=404, detail="Satellite job run not found")
     raw_result = service.get_host_result_raw(job_run_id, host_id)
     if raw_result is None:
         raise HTTPException(status_code=404, detail="Satellite host result not found")
@@ -217,7 +215,7 @@ def get_host_job_raw_output(
 @router.post(
     "/jobs/{job_run_id}/cancel",
     response_model=SatelliteJobRunResponse,
-    summary="Cancel active job run (BRD S7)",
+    summary="S7 — Cancel a pending job run",
 )
 def cancel_job_run(
     job_run_id: int,
