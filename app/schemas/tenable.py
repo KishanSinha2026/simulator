@@ -63,7 +63,7 @@ class TenableFindingBase(BaseModel):
         default=None,
         max_length=150,
     )
-    scan_id: int | None = None
+    scan_id: int | None = Field(default=None, gt=0)
 
     plugin_id: int | None = Field(default=None, gt=0)
     plugin_name: str | None = Field(default=None, max_length=500)
@@ -278,4 +278,4 @@ class TenableImportResponse(BaseModel):
     informational_records_retained: int
     errors: int
     source_offset: int
-    source_limit: int
+    source_limit: int
