@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
     log_level: str = "INFO"
+    # Comma-separated browser origins allowed to call this API.
+    cors_allowed_origins: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:8501,http://127.0.0.1:8501"
+    )
 
     # PostgreSQL
     database_url: SecretStr = SecretStr(
