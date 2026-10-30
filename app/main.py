@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import cmdb, health, itsm, satellite, sccm, squad1, tenable
+from app.api.v1 import ansible, cmdb, health, itsm, satellite, sccm, squad1, tenable
 from app.core.config import get_settings
 
 
@@ -34,8 +34,8 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     description=(
-        "VPM360 integration API for vulnerability, CMDB, "
-        "ITSM, and Satellite workflows."
+        "VPM360 integration API for vulnerability, CMDB, ITSM, "
+        "Satellite, SCCM, Squad1, and Ansible Automation workflows."
     ),
     version="1.0.0",
     debug=settings.debug,
@@ -64,6 +64,7 @@ for router in (
     cmdb.router,
     itsm.router,
     satellite.router,
+    ansible.router,
     squad1.router,
     sccm.router,
 ):
@@ -71,15 +72,6 @@ for router in (
         router,
         prefix=settings.api_v1_prefix,
     )
-
-# Include istm alias without duplicating routes in OpenAPI docs
-app.include_router(
-    itsm.istm_router,
-    prefix=settings.api_v1_prefix,
-    include_in_schema=False,
-)
-
-
 
 @app.get("/", tags=["System"])
 def root() -> dict[str, str]:

@@ -11,7 +11,6 @@ from app.models.cmdb import (
     CMDBRelationship,
     CMDBServer,
 )
-from app.providers.factory import get_provider
 from app.repositories.cmdb import (
     CMDBDatabaseRepository,
     CMDBMiddlewareRepository,
@@ -32,13 +31,13 @@ from app.schemas.cmdb import (
 class CMDBService:
     """Coordinate CMDB server, middleware, database, and relationship operations."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, provider: Any) -> None:
         self.db = db
         self.repository = CMDBServerRepository(db)
         self.middleware_repository = CMDBMiddlewareRepository(db)
         self.database_repository = CMDBDatabaseRepository(db)
         self.relationship_repository = CMDBRelationshipRepository(db)
-        self.provider = get_provider("cmdb")
+        self.provider = provider
 
     @staticmethod
     def _parse_datetime(value: Any) -> datetime | None:

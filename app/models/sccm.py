@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -40,8 +41,12 @@ class SCCMDevice(Base):
         String(255), nullable=True
     )
 
+    client_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+
     client_active_status: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True
+        Boolean, nullable=False, default=False
     )
 
     is_client: Mapped[bool] = mapped_column(
@@ -183,6 +188,10 @@ class SCCMDeploymentRun(Base):
         String(100), nullable=False, index=True
     )
 
+    deployment_id: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, index=True
+    )
+
     mode: Mapped[str] = mapped_column(
         String(100), nullable=False, default="STANDARD_PATCH"
     )
@@ -298,6 +307,10 @@ class SCCMDeploymentAssetDetail(Base):
 
     error_code: Mapped[str | None] = mapped_column(
         String(50), nullable=True
+    )
+
+    reboot_pending: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
     )
 
     status_time: Mapped[datetime | None] = mapped_column(

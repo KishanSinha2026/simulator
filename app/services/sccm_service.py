@@ -13,7 +13,6 @@ from app.models.sccm import (
     SCCMDeploymentRun,
     SCCMDevice,
 )
-from app.providers.factory import get_provider
 from app.repositories.sccm import (
     SCCMCollectionRepository,
     SCCMDeploymentRepository,
@@ -21,18 +20,19 @@ from app.repositories.sccm import (
     SCCMDeviceRepository,
 )
 from app.schemas.sccm import SCCMJobLaunchRequest
+from app.services.patching_guard import active_exception_targets
 
 
 class SCCMService:
     """Coordinate SCCM device inventory, collection targeting, and guarded patch jobs."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, provider: Any) -> None:
         self.db = db
         self.device_repo = SCCMDeviceRepository(db)
         self.collection_repo = SCCMCollectionRepository(db)
         self.deployment_repo = SCCMDeploymentRepository(db)
         self.run_repo = SCCMDeploymentRunRepository(db)
-        self.provider = get_provider("sccm")
+        self.provider = provider
 
     @staticmethod
     def _validate_pagination(limit: int, offset: int) -> None:
@@ -41,6 +41,17 @@ class SCCMService:
             raise ValueError("limit must be between 1 and 50000")
         if offset < 0:
             raise ValueError("offset cannot be negative")
+
+    @staticmethod
+    def _parse_datetime(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        return None
 
     # ------------------------------------------------------------------
     # Devices (Table 20: SMS_CombinedDeviceResources)
@@ -150,9 +161,35 @@ class SCCMService:
     ) -> SCCMDeploymentRun:
         """Launch and record a guarded patch deployment execution run."""
         data = payload.model_dump()
-        run_id = data.get("run_id", "").strip()
+        run_id = str(data.get("run_id") or "").strip()
         if not run_id:
             run_id = f"RUN-WIN-{uuid4().hex[:6].upper()}"
+
+        deployment: SCCMDeployment | None = None
+        external_deployment_id = str(data.get("deployment_id") or "").strip()
+        assignment_id = str(data.get("assignment_id") or "").strip()
+        if external_deployment_id:
+            for candidate in self.db.query(SCCMDeployment).all():
+                source_id = str((candidate.source_payload or {}).get("id") or "")
+                if external_deployment_id in {
+                    str(candidate.id), candidate.assignment_id, source_id,
+                }:
+                    deployment = candidate
+                    break
+        elif assignment_id:
+            deployment = self.deployment_repo.get_by_assignment_id(assignment_id)
+        if deployment is None:
+            raise ValueError("SCCM deployment was not found in the imported deployment inventory")
+
+        if assignment_id and assignment_id != deployment.assignment_id:
+            raise ValueError("assignment_id does not match the selected deployment")
+        assignment_id = deployment.assignment_id
+        target_collection_id = str(data.get("target_collection_id") or deployment.target_collection_id)
+        if target_collection_id != deployment.target_collection_id:
+            raise ValueError("target_collection_id does not match the selected deployment")
+        external_deployment_id = external_deployment_id or str(
+            (deployment.source_payload or {}).get("id") or deployment.id
+        )
 
         targets = data.get("targets") or []
         if not targets:
@@ -166,19 +203,48 @@ class SCCMService:
         now = datetime.now(timezone.utc)
         compliant_count = 0
         error_count = 0
+        unknown_count = 0
+        skipped_count = 0
 
         asset_details_to_create = []
-
+        target_devices: list[tuple[dict[str, Any], SCCMDevice | None]] = []
+        exception_candidates: set[str] = set()
         for target in targets:
+            resource_id = str(target.get("resource_id", "")).strip()
+            hostname = str(target.get("hostname", "")).strip()
+            device = self.device_repo.get_by_resource_id(resource_id)
+            if device and device.collection_id and device.collection_id != target_collection_id:
+                raise ValueError(
+                    f"Target {hostname or resource_id!r} is outside the deployment collection"
+                )
+            target_devices.append((target, device))
+            exception_candidates.update(value for value in (
+                resource_id,
+                hostname,
+                device.name if device else None,
+                device.ip_address if device else None,
+            ) if value)
+        exception_targets = active_exception_targets(self.db, exception_candidates)
+
+        for target, device in target_devices:
             res_id = str(target.get("resource_id", "")).strip()
             hostname = str(target.get("hostname", "")).strip()
             ci_id = target.get("server_ci_id")
 
             # Check client active readiness gate
-            device = self.device_repo.get_by_resource_id(res_id)
-            is_active = device.client_active_status if device else True
+            is_active = bool(device and device.client_active_status and device.is_client)
+            has_active_exception = any(
+                value and value.strip().casefold() in exception_targets
+                for value in (res_id, hostname, device.name if device else None, device.ip_address if device else None)
+            )
 
-            if is_active:
+            if device is None:
+                status_val = "Unknown"
+                unknown_count += 1
+            elif has_active_exception:
+                status_val = "Skipped"
+                skipped_count += 1
+            elif is_active:
                 status_val = "Compliant"
                 compliant_count += 1
             else:
@@ -190,18 +256,31 @@ class SCCMService:
                 server_ci_id=ci_id,
                 hostname=hostname,
                 status=status_val,
-                status_type="Success" if is_active else "ClientInactive",
-                error_code="0" if is_active else "0x87D00324",
+                status_type=(
+                    "DeviceNotFound" if device is None
+                    else "ActiveException" if has_active_exception
+                    else "Success" if is_active
+                    else "ClientInactive"
+                ),
+                error_code=(
+                    "DEVICE_NOT_FOUND" if device is None
+                    else "ACTIVE_EXCEPTION" if has_active_exception
+                    else "0" if is_active
+                    else "0x87D00324"
+                ),
                 status_time=now,
+                source_payload={"blocked_by_active_exception": has_active_exception},
+                reboot_pending=False,
             )
             asset_details_to_create.append(detail)
 
         run = SCCMDeploymentRun(
             run_id=run_id,
             change_number=data.get("change_number", ""),
+            deployment_id=external_deployment_id,
             mode=data.get("mode", "STANDARD_PATCH"),
-            target_collection_id=data.get("target_collection_id", ""),
-            assignment_id=data.get("assignment_id", ""),
+            target_collection_id=target_collection_id,
+            assignment_id=assignment_id,
             window_start=data.get("window_start"),
             window_end=data.get("window_end"),
             reboot_policy=data.get("reboot_policy", "CLIENT_APPROVED"),
@@ -209,8 +288,8 @@ class SCCMService:
             compliant_count=compliant_count,
             in_progress_count=0,
             error_count=error_count,
-            unknown_count=0,
-            skipped_count=0,
+            unknown_count=unknown_count,
+            skipped_count=skipped_count,
             started_at=now,
             completed_at=now,
             asset_details=asset_details_to_create,
@@ -269,20 +348,37 @@ class SCCMService:
             try:
                 raw_devices = self.provider.list_devices(limit=50000)
                 for item in raw_devices:
-                    res_id = str(item.get("resource_id") or item.get("id") or "").strip()
+                    res_id = str(
+                        item.get("resource_id")
+                        or item.get("source_device_id")
+                        or item.get("ResourceID")
+                        or item.get("id")
+                        or ""
+                    ).strip()
                     if not res_id:
                         continue
+                    source_payload = item.get("source_payload") or item
+                    ip_value = item.get("ip_address") or item.get("IPAddress") or item.get("IPAddresses")
+                    if isinstance(ip_value, list):
+                        ip_value = ",".join(str(value) for value in ip_value if value)
                     existing = self.device_repo.get_by_resource_id(res_id)
                     data = {
                         "resource_id": res_id,
-                        "name": item.get("name") or res_id,
-                        "ip_address": item.get("ip_address"),
-                        "operating_system": item.get("operating_system"),
-                        "client_active_status": item.get("client_active_status", True),
-                        "is_client": item.get("is_client", True),
-                        "last_active_time": item.get("last_active_time"),
-                        "collection_id": item.get("collection_id"),
-                        "source_payload": item.get("source_payload") or item,
+                        "name": item.get("name") or item.get("hostname") or item.get("Name") or res_id,
+                        "ip_address": ip_value,
+                        "operating_system": item.get("operating_system") or item.get("OperatingSystemNameandVersion"),
+                        "client_version": (
+                            item.get("client_version")
+                            or item.get("ClientVersion")
+                            or source_payload.get("client_version")
+                        ),
+                        "client_active_status": item.get("client_active_status", item.get("ClientActiveStatus", False)),
+                        "is_client": item.get("is_client", item.get("IsClient", False)),
+                        "last_active_time": self._parse_datetime(
+                            item.get("last_active_time") or item.get("LastActiveTime")
+                        ),
+                        "collection_id": item.get("collection_id") or item.get("CollectionID"),
+                        "source_payload": source_payload,
                     }
                     if existing is None:
                         self.device_repo.create(data)

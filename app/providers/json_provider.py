@@ -44,18 +44,7 @@ class JsonProvider(BaseProvider):
             raise ValueError("A fixture filename is required")
 
     def _resolve_existing_path(self) -> Path:
-        """Resolve fixture path, including itsm/istm aliases if necessary."""
-        if not self.file_path.exists():
-            path_str = str(self.file_path)
-            if "\\itsm\\" in path_str or "/itsm/" in path_str:
-                alt = Path(path_str.replace("\\itsm\\", "\\istm\\").replace("/itsm/", "/istm/"))
-                if alt.exists():
-                    self.file_path = alt
-            elif "\\istm\\" in path_str or "/istm/" in path_str:
-                alt = Path(path_str.replace("\\istm\\", "\\itsm\\").replace("/itsm/", "/itsm/"))
-                if alt.exists():
-                    self.file_path = alt
-
+        """Return the configured fixture path."""
         return self.file_path
 
     @staticmethod

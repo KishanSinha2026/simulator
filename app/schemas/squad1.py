@@ -1,9 +1,9 @@
 """Pydantic schemas for Squad1 vulnerability lifecycle tracking."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field
 
 
 class Squad1VulnerabilityBase(BaseModel):
@@ -36,7 +36,12 @@ class Squad1VulnerabilityBase(BaseModel):
     description: str | None = Field(default=None, description="Detailed vulnerability description")
     protocol: str | None = Field(default=None, max_length=50, description="Transport protocol (e.g. tcp)")
     port: int | None = Field(default=None, ge=0, le=65535, description="Network port")
-    risk_rating: str | None = Field(default=None, max_length=50, description="Risk rating (Critical, High, Medium, Low)")
+    risk_rating: str | None = Field(
+        default=None,
+        max_length=50,
+        validation_alias=AliasChoices("severity", "risk_rating"),
+        description="Risk rating / BRD severity (Critical, High, Medium, Low)",
+    )
     status: str | None = Field(default="Open", max_length=50, description="Status (Open, In Progress, Exception, Closed)")
     recommendation: str | None = Field(default=None, description="Remediation recommendation")
     solution_category: str | None = Field(default=None, max_length=100, description="Solution category")
@@ -73,6 +78,12 @@ class Squad1VulnerabilityResponse(Squad1VulnerabilityBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @computed_field
+    @property
+    def severity(self) -> str | None:
+        """Expose the BRD field name alongside the stored risk_rating."""
+        return self.risk_rating
+
 
 class Squad1VulnerabilityListResponse(BaseModel):
     """Paginated list of Squad1 vulnerability records."""
@@ -95,6 +106,12 @@ class Squad1ExceptionResponse(BaseModel):
     exception_end_date: datetime | None
     exception_status: str | None
     status: str | None
+
+    @computed_field
+    @property
+    def is_expired(self) -> bool:
+        """Report exception expiry using the BRD response field."""
+        return self.exception_end_date is not None and self.exception_end_date < datetime.now(timezone.utc)
 
     model_config = ConfigDict(from_attributes=True)
 

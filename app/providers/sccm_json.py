@@ -108,6 +108,7 @@ class SCCMJsonProvider:
 
         compliant_count = 0
         error_count = 0
+        unknown_count = 0
 
         for t in targets:
             res_id = t.get("resource_id", "RES-UNKNOWN")
@@ -116,9 +117,16 @@ class SCCMJsonProvider:
 
             # Check client active readiness
             dev = self.get_device(res_id)
-            is_active = dev.get("client_active_status", True) if dev else True
+            is_active = bool(
+                dev
+                and dev.get("client_active_status", False)
+                and dev.get("is_client", False)
+            )
 
-            if is_active:
+            if dev is None:
+                status_val = "Unknown"
+                unknown_count += 1
+            elif is_active:
                 status_val = "Compliant"
                 compliant_count += 1
             else:
@@ -130,8 +138,16 @@ class SCCMJsonProvider:
                 "server_ci_id": ci_id,
                 "hostname": hostname,
                 "status": status_val,
-                "status_type": "Success" if is_active else "ClientInactive",
-                "error_code": "0" if is_active else "0x87D00324",
+                "status_type": (
+                    "Success" if is_active
+                    else "DeviceNotFound" if dev is None
+                    else "ClientInactive"
+                ),
+                "error_code": (
+                    "0" if is_active
+                    else "DEVICE_NOT_FOUND" if dev is None
+                    else "0x87D00324"
+                ),
                 "status_time": now_iso,
             })
 
@@ -149,7 +165,7 @@ class SCCMJsonProvider:
             "compliant_count": compliant_count,
             "in_progress_count": 0,
             "error_count": error_count,
-            "unknown_count": 0,
+            "unknown_count": unknown_count,
             "skipped_count": 0,
             "started_at": now_iso,
             "completed_at": now_iso,

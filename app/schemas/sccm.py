@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
 class SCCMDeviceResponse(BaseModel):
@@ -14,6 +14,7 @@ class SCCMDeviceResponse(BaseModel):
     name: str
     ip_address: str | None = None
     operating_system: str | None = None
+    client_version: str | None = None
     client_active_status: bool
     is_client: bool
     last_active_time: datetime | None = None
@@ -23,6 +24,18 @@ class SCCMDeviceResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def source_device_id(self) -> str:
+        """BRD name for SCCM ResourceID, retaining the legacy field too."""
+        return self.resource_id
+
+    @computed_field
+    @property
+    def hostname(self) -> str:
+        """BRD name for the SCCM device name, retaining the legacy field too."""
+        return self.name
 
 
 class SCCMDeviceListResponse(BaseModel):
@@ -91,9 +104,26 @@ class SCCMDeploymentListResponse(BaseModel):
 class SCCMTargetItem(BaseModel):
     """Target host entry matching BRD Section 8.5.5."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     server_ci_id: str | None = Field(default=None, description="Authoritative CMDB instance ID")
-    resource_id: str = Field(..., min_length=1, description="SCCM ResourceID")
-    hostname: str = Field(..., min_length=1, description="Target host FQDN")
+    resource_id: str = Field(
+        ..., min_length=1,
+        validation_alias=AliasChoices("resource_id", "source_device_id"),
+        description="SCCM ResourceID / BRD source_device_id",
+    )
+    hostname: str = Field(
+        ..., min_length=1,
+        validation_alias=AliasChoices("hostname", "name"),
+        description="Target host FQDN",
+    )
+
+
+class SCCMMaintenanceWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: datetime | None = None
+    end: datetime | None = None
 
 
 class SCCMJobLaunchRequest(BaseModel):
@@ -101,15 +131,28 @@ class SCCMJobLaunchRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    run_id: str = Field(..., min_length=1, max_length=100, description="External run identifier (e.g. RUN-WIN-001)")
-    change_number: str = Field(..., min_length=1, max_length=100, description="Approved Helix change request ID")
+    run_id: str | None = Field(default=None, min_length=1, max_length=100, description="Optional caller run identifier")
+    deployment_id: str | None = Field(default=None, min_length=1, max_length=100, description="BRD SCCM deployment identifier")
+    change_number: str | None = Field(default=None, max_length=100, description="Related Helix change request ID")
     mode: str = Field(default="STANDARD_PATCH", max_length=100, description="Approved SCCM execution mode")
     targets: list[SCCMTargetItem] = Field(..., min_length=1, description="Target host set to patch")
-    target_collection_id: str = Field(..., min_length=1, max_length=100, description="Approved target CollectionID")
-    assignment_id: str = Field(..., min_length=1, max_length=100, description="Approved update group AssignmentID")
+    target_collection_id: str | None = Field(default=None, max_length=100, description="Approved target CollectionID")
+    assignment_id: str | None = Field(default=None, max_length=100, description="Approved update group AssignmentID")
+    maintenance_window: SCCMMaintenanceWindow | None = None
     window_start: datetime | None = Field(default=None, description="Approved maintenance window start")
     window_end: datetime | None = Field(default=None, description="Approved maintenance window end")
     reboot_policy: str = Field(default="CLIENT_APPROVED", max_length=100, description="Reboot control policy")
+
+    @model_validator(mode="after")
+    def normalize_window_and_policy(self) -> "SCCMJobLaunchRequest":
+        if self.maintenance_window is not None:
+            self.window_start = self.window_start or self.maintenance_window.start
+            self.window_end = self.window_end or self.maintenance_window.end
+        if not self.deployment_id and not self.assignment_id:
+            raise ValueError("deployment_id or assignment_id is required")
+        if self.window_start and self.window_end and self.window_start >= self.window_end:
+            raise ValueError("maintenance window start must be before end")
+        return self
 
 
 class SCCMDeploymentAssetDetailResponse(BaseModel):
@@ -123,6 +166,7 @@ class SCCMDeploymentAssetDetailResponse(BaseModel):
     status_type: str | None = None
     error_code: str | None = None
     status_time: datetime | None = None
+    reboot_pending: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -132,6 +176,7 @@ class SCCMDeploymentRunResponse(BaseModel):
 
     id: int
     run_id: str
+    deployment_id: str | None = None
     change_number: str
     mode: str
     target_collection_id: str
@@ -152,6 +197,17 @@ class SCCMDeploymentRunResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @computed_field
+    @property
+    def source_job_id(self) -> str:
+        """Expose the BRD source_job_id while retaining run_id for compatibility."""
+        return self.run_id
+
+    @computed_field
+    @property
+    def total_targets(self) -> int:
+        return len(self.asset_details)
 
 
 class SCCMDeploymentRunListResponse(BaseModel):

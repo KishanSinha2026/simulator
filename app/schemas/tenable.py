@@ -157,6 +157,12 @@ class TenableFindingResponse(TenableFindingBase):
 
     @computed_field
     @property
+    def cve_ids(self) -> list[str]:
+        """Expose the BRD's cve_ids array as well as normalized CVE relations."""
+        return [item.cve for item in self.cves]
+
+    @computed_field
+    @property
     def brd_54_fields(self) -> TenableBRD54Fields:
         """Return the 54 exact BRD field labels and received values."""
         payload = self.source_payload or {}

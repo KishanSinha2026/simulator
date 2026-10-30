@@ -9,7 +9,6 @@ from app.models.itsm import (
     ITSMChangeHistory,
     ITSMWorklog,
 )
-from app.providers.factory import get_provider
 from app.repositories.itsm import (
     ITSMChangeHistoryRepository,
     ITSMChangeRepository,
@@ -25,12 +24,12 @@ from app.schemas.itsm import (
 class ITSMService:
     """Coordinate ITSM change, worklog, and history operations."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, provider: Any) -> None:
         self.db = db
         self.repository = ITSMChangeRepository(db)
         self.worklog_repository = ITSMWorklogRepository(db)
         self.history_repository = ITSMChangeHistoryRepository(db)
-        self.provider = get_provider("itsm")
+        self.provider = provider
 
     @staticmethod
     def _parse_dt(val: Any) -> datetime | None:

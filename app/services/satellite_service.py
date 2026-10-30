@@ -10,13 +10,13 @@ from app.models.satellite import (
     SatelliteJobRun,
     SatelliteJobTemplate,
 )
-from app.providers.factory import get_provider
 from app.repositories.satellite import (
     SatelliteHostRepository,
     SatelliteJobHostResultRepository,
     SatelliteJobRunRepository,
     SatelliteJobTemplateRepository,
 )
+from app.services.patching_guard import active_exception_targets
 from app.schemas.satellite import (
     SatelliteHostCreate,
     SatelliteHostUpdate,
@@ -29,13 +29,13 @@ from app.schemas.satellite import (
 class SatelliteService:
     """Coordinate Satellite resource operations and PostgreSQL persistence."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, provider: Any) -> None:
         self.db = db
         self.host_repository = SatelliteHostRepository(db)
         self.template_repository = SatelliteJobTemplateRepository(db)
         self.job_repository = SatelliteJobRunRepository(db)
         self.result_repository = SatelliteJobHostResultRepository(db)
-        self.provider = get_provider("satellite")
+        self.provider = provider
 
     # ------------------------------------------------------------------
     # Host Operations (Database)
@@ -271,6 +271,19 @@ class SatelliteService:
             hosts.append(host)
 
         try:
+            exception_targets = active_exception_targets(
+                self.db,
+                {
+                    identifier
+                    for host in hosts
+                    for identifier in (
+                        host.source_host_id,
+                        host.name,
+                        host.ip_address,
+                    )
+                    if identifier
+                },
+            )
             job = self.job_repository.create(
                 {
                     "template_id": template.id,
@@ -286,16 +299,23 @@ class SatelliteService:
 
             # Create an initial result for every selected host.
             for host in hosts:
+                host_is_excepted = any(
+                    identifier and identifier.strip().casefold() in exception_targets
+                    for identifier in (host.source_host_id, host.name, host.ip_address)
+                )
                 result = SatelliteJobHostResult(
                     job_run_id=job.id,
                     host_id=host.id,
-                    status="pending",
+                    status="skipped" if host_is_excepted else "pending",
                     result_text=(
-                        "Simulation queued; no remote command executed."
+                        "Skipped because an active Squad1 exception applies."
+                        if host_is_excepted
+                        else "Simulation queued; no remote command executed."
                     ),
                     source_payload={
                         "is_simulated": True,
                         "external_host_id": host.source_host_id,
+                        "blocked_by_active_exception": host_is_excepted,
                     },
                 )
                 self.db.add(result)

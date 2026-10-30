@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.providers.factory import get_provider
 from app.schemas.cmdb import (
     CMDBDatabaseListResponse,
     CMDBImportResponse,
@@ -43,7 +44,7 @@ def get_cmdb_service(
     db: Session = Depends(get_db),
 ) -> CMDBService:
     """Create the CMDB service for the current request."""
-    return CMDBService(db)
+    return CMDBService(db, get_provider("cmdb"))
 
 
 @router.get(

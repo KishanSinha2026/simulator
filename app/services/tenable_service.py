@@ -6,7 +6,6 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.tenable import TenableFinding, TenableFindingCVE, TenableScan
-from app.providers.factory import get_provider
 from app.providers.tenable_normalizer import normalize_tenable_record
 from app.repositories.tenable import TenableFindingRepository, TenableScanRepository
 from app.schemas.tenable import TenableFindingCreate, TenableScanCreate
@@ -15,11 +14,11 @@ from app.schemas.tenable import TenableFindingCreate, TenableScanCreate
 class TenableService:
     """Coordinate Tenable providers and PostgreSQL persistence with high-performance batching."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, provider: Any) -> None:
         self.db = db
         self.repository = TenableFindingRepository(db)
         self.scan_repository = TenableScanRepository(db)
-        self.provider = get_provider("tenable")
+        self.provider = provider
 
     def list_findings(
         self,

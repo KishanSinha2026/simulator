@@ -2,7 +2,9 @@
 
 Enterprise vulnerability management and remediation integration simulator for **IndusInd Bank VPM360**, mapping the workflows in **BRD, HLD & TDD Section 4**. Vendor contracts and production-specific controls that the BRD leaves pending remain subject to client confirmation.
 
-The simulator provides unified integration endpoints for **Tenable**, **BMC Helix CMDB**, **BMC Helix ITSM**, **Red Hat Satellite**, **Squad1**, and **Microsoft SCCM 2509**. Integrations can use configured vendor APIs or local PostgreSQL / JSON fixtures; a public workflow route may still be simulated when execution controls or client API contracts are pending.
+The simulator provides unified integration endpoints for **Tenable**, **BMC Helix CMDB**, **BMC Helix ITSM**, **Red Hat Satellite**, **Squad1**, **Microsoft SCCM 2509**, and **Ansible Automation Platform (AAP/AWX)**. Integrations can use configured vendor APIs or local PostgreSQL / JSON fixtures; a public workflow route may still be simulated when execution controls or client API contracts are pending.
+
+Ansible Automation Platform / AWX is available as an API-backed patch execution integration. Configure `ANSIBLE_PROVIDER=api`, `ANSIBLE_BASE_URL`, and `ANSIBLE_API_KEY` in the environment (never commit the key). The API prefix defaults to `/api/controller/v2` for current AAP; set `ANSIBLE_API_PREFIX=/api/v2` for AWX/older controller deployments. `GET /api/v1/ansible/connection` checks API connectivity and authentication without launching a job. Other routes under `/api/v1/ansible` list job templates, launch jobs, refresh job status, and request cancellation. Launching a job can execute changes on selected hosts; restrict the API and controller template permissions accordingly. Job history is stored in `ansible_job_runs`; apply the Alembic migration before use.
 
 ---
 
@@ -16,6 +18,7 @@ The simulator provides unified integration endpoints for **Tenable**, **BMC Heli
    - [2.4 Red Hat Satellite](#24-red-hat-satellite)
    - [2.5 Squad1 Vulnerability Management & Exception Handling](#25-squad1-vulnerability-management--exception-handling)
    - [2.6 Microsoft SCCM 2509 Enterprise Patch Management](#26-microsoft-sccm-2509-enterprise-patch-management)
+   - [2.7 Ansible Automation Platform / AWX](#27-ansible-automation-platform--awx)
 3. [Canonical BRD Route Catalog](#canonical-brd-route-catalog)
 4. [20k+ Dataset Throughput & Idempotency](#20k-dataset-throughput--idempotency)
 5. [Fixture Directory Structure](#fixture-directory-structure)
@@ -105,6 +108,8 @@ The simulator provides unified integration endpoints for **Tenable**, **BMC Heli
   "cve_ids": ["CVE-2001-0144"]
 }
 ```
+
+Finding responses expose both the normalized `cves` relation records and the BRD-compatible `cve_ids` string array.
 
 ---
 
@@ -304,6 +309,7 @@ Squad1 provides vulnerability discovery and exception tracking under BRD Section
   "exception_end_date": "2026-12-31"
 }
 ```
+The BRD field `severity` is accepted on create and returned alongside the normalized database field `risk_rating`.
 
 #### Exception List Output (`GET /api/v1/squad1/exceptions`)
 ```json
@@ -332,8 +338,9 @@ Squad1 provides vulnerability discovery and exception tracking under BRD Section
 
 ### 2.6 Microsoft SCCM 2509 Enterprise Patch Management
 
-SCCM 2509 executes Windows patching as specified in BRD Section 4.6 (Table 20) and Section 8.5.5.
+SCCM 2509 models Windows patching as specified in BRD Section 4.6 (Table 20) and Section 8.5.5. The current `POST /api/v1/sccm/jobs` records a simulated deployment; the API provider has read-only inventory calls, so it does not yet submit a live SCCM deployment.
 - **Client Readiness Gate**: Prior to deployment, devices must have `client_active_status: true`. Inactive clients are rejected from automated remediation.
+- **Target Exceptions**: Targets matching an active Squad1 exception are marked `Skipped`; unknown SCCM devices remain `Unknown` and are not marked successful.
 - **Compliance Tracking**: Deployment execution aggregates compliance statuses across all target assets into `Compliant`, `In Progress`, `Error`, `Unknown`, and `Skipped`.
 
 #### Data Schema: SCCM Device (`sccm_devices`)
@@ -357,8 +364,8 @@ SCCM 2509 executes Windows patching as specified in BRD Section 4.6 (Table 20) a
   "targets": [
     {
       "server_ci_id": "CI-SERVER-WIN-01",
-      "resource_id": "sccm-dev-001",
-      "hostname": "win-app-01.indusind.local"
+      "resource_id": "RES-WIN-1001",
+      "hostname": "win-app01.indusind.local"
     }
   ],
   "maintenance_window": {
@@ -373,26 +380,52 @@ SCCM 2509 executes Windows patching as specified in BRD Section 4.6 (Table 20) a
 ```json
 {
   "id": 1,
-  "source_job_id": "sccm-job-98421",
-  "deployment_id": 1,
-  "status": "In Progress",
-  "total_targets": 2,
+  "source_job_id": "RUN-WIN-001",
+  "deployment_id": "sccm-dep-001",
+  "status": "completed",
+  "total_targets": 1,
   "compliant_count": 1,
-  "in_progress_count": 1,
+  "in_progress_count": 0,
   "error_count": 0,
   "skipped_count": 0,
   "created_at": "2026-10-27T10:00:00Z",
   "asset_details": [
     {
       "id": 1,
-      "resource_id": "sccm-dev-001",
-      "hostname": "win-app-01.indusind.local",
+      "resource_id": "RES-WIN-1001",
+      "hostname": "win-app01.indusind.local",
       "status": "Compliant",
       "reboot_pending": false
     }
   ]
 }
 ```
+
+### 2.7 Ansible Automation Platform / AWX
+
+The AAP API uses a configured bearer token and API root (`/api/controller/v2` by default; override with `ANSIBLE_API_PREFIX` for older AWX deployments). The token is read from `ANSIBLE_API_KEY` and is not stored in the database.
+
+#### Patch Job Launch Request (`POST /api/v1/ansible/jobs`)
+
+```json
+{
+  "job_template_id": "6",
+  "limit": "rhel-host-01.example.com",
+  "extra_vars": {"package_state": "latest"}
+}
+```
+
+`limit` must contain exact hostnames or IPs; broad patterns are rejected. Targets with active Squad1 exceptions are blocked. The template must already have the required inventory and machine credentials configured in AAP. Job execution details are persisted in `ansible_job_runs` with the remote job ID, template ID, status, target limit, extra variables, timestamps, and source response payload.
+
+| Launch request field | Type | Required | Meaning |
+|---|---|:---:|---|
+| `job_template_id` | string | Yes | AAP controller job template ID. |
+| `limit` | string | Yes | Explicit Ansible host pattern to constrain targets. |
+| `extra_vars` | object | No | Variables accepted by the selected template. |
+
+The job detail response includes the local `id`, remote `job_id`, `job_template_id`, `status`, `limit`, `extra_vars`, `started_at`, `finished_at`, and `source_payload`. Connection responses contain `connected`, `controller`, and `api_version` without returning the configured token.
+
+The read-only connection check is `GET /api/v1/ansible/connection`; template listing is `GET /api/v1/ansible/job-templates`; job status and cancellation use `/api/v1/ansible/jobs/{id}` and `/api/v1/ansible/jobs/{id}/cancel`.
 
 ---
 
@@ -440,9 +473,14 @@ The table below lists the main public operations. The generated OpenAPI document
 | **SCCM** | `GET` | `/api/v1/sccm/devices` | List managed Windows devices (supports `limit=50000`, BRD 4.6) |
 | | `GET` | `/api/v1/sccm/collections` | List SCCM device collections |
 | | `GET` | `/api/v1/sccm/deployments` | List SCCM software update deployments |
-| | `POST` | `/api/v1/sccm/jobs` | Launch guarded patch deployment run (BRD 8.5.5) |
+| | `POST` | `/api/v1/sccm/jobs` | Record a simulated guarded deployment run; no remote SCCM deployment is submitted |
 | | `GET` | `/api/v1/sccm/jobs/{id}` | Retrieve deployment run breakdown |
 | | `POST` | `/api/v1/sccm/import` | Synchronize SCCM inventory and deployment states |
+| **Ansible AAP** | `GET` | `/api/v1/ansible/connection` | Check configured controller authentication without launching a job |
+| | `GET` | `/api/v1/ansible/job-templates` | List controller job templates |
+| | `POST` | `/api/v1/ansible/jobs` | Launch an Ansible job with an explicit target `limit` and `extra_vars` |
+| | `GET` | `/api/v1/ansible/jobs/{id}` | Refresh and persist controller job status |
+| | `POST` | `/api/v1/ansible/jobs/{id}/cancel` | Request controller job cancellation |
 
 ---
 
@@ -453,7 +491,7 @@ The table below lists the main public operations. The generated OpenAPI document
 2. **In-Memory Fixture Cache**: Global `_FIXTURE_CACHE` stores parsed JSON payloads keyed by file modification time (`st_mtime`). Repeated reads of 20,000 records return in under **1 millisecond**.
 3. **Fast-Path Normalization**: Avoids deep re-normalization when reading fixture rows that already contain normalized attributes, cutting processing time from ~50 seconds to **0.009 seconds**.
 4. **500-Item Chunked Batch Ingestion**: Replaces slow per-row SQL flushes and savepoints with vectorized `filter(source_id.in_(chunk_ids))` lookups and atomic chunk commits, preventing PostgreSQL connection stalls.
-5. **Idempotency Guarantees**: Repeated POST requests update records in place and return the current state, preventing duplicate key errors across all six providers.
+5. **Idempotency Guarantees**: Repeated POST requests update records in place and return the current state, preventing duplicate key errors across the configured integrations.
 
 ---
 

@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.providers.factory import get_provider
 from app.schemas.sccm import (
     SCCMCollectionListResponse,
     SCCMDeploymentListResponse,
@@ -40,7 +41,7 @@ def get_sccm_service(
     db: Session = Depends(get_db),
 ) -> SCCMService:
     """Create SCCM service for current request."""
-    return SCCMService(db)
+    return SCCMService(db, get_provider("sccm"))
 
 
 @router.get(

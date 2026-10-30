@@ -1,11 +1,12 @@
 """Business logic for Squad1 vulnerability lifecycle management."""
 
+from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.squad1 import Squad1Vulnerability
-from app.providers.factory import get_provider
 from app.repositories.squad1 import Squad1Repository
 from app.schemas.squad1 import Squad1VulnerabilityCreate
 
@@ -13,10 +14,10 @@ from app.schemas.squad1 import Squad1VulnerabilityCreate
 class Squad1Service:
     """Coordinate Squad1 vulnerability imports, exceptions, and updates."""
 
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, provider: Any) -> None:
         self.db = db
         self.repository = Squad1Repository(db)
-        self.provider = get_provider("squad1")
+        self.provider = provider
 
     @staticmethod
     def _validate_pagination(limit: int, offset: int) -> None:
@@ -88,6 +89,10 @@ class Squad1Service:
         query = self.db.query(Squad1Vulnerability).filter(
             Squad1Vulnerability.exception_id.isnot(None),
             Squad1Vulnerability.exception_id != "",
+            or_(
+                Squad1Vulnerability.exception_end_date.is_(None),
+                Squad1Vulnerability.exception_end_date >= datetime.now(timezone.utc),
+            ),
         )
         total = query.count()
         items = (
@@ -202,6 +207,11 @@ class Squad1Service:
                     if k in allowed_fields
                 }
                 data["vulnerability_no"] = vuln_no
+                data["risk_rating"] = (
+                    data.get("risk_rating")
+                    or raw.get("severity")
+                    or raw.get("Severity")
+                )
                 if "target" not in data or not data["target"]:
                     data["target"] = raw.get("Target") or "unknown-target"
                 if "vulnerability_name" not in data or not data["vulnerability_name"]:

@@ -149,6 +149,13 @@ class Settings(BaseSettings):
     satellite_password: SecretStr | None = None
     satellite_verify_tls: bool = True
 
+    # Ansible Automation Platform / AWX
+    ansible_provider: ProviderMode = "json"
+    ansible_base_url: str = ""
+    ansible_api_prefix: str = "/api/controller/v2"
+    ansible_api_key: SecretStr | None = None
+    ansible_verify_tls: bool = True
+
     # ---------------------------------------------------------
     # Squad1 (Vulnerability Lifecycle)
     # ---------------------------------------------------------
@@ -178,6 +185,7 @@ class Settings(BaseSettings):
         "cmdb_base_url",
         "itsm_base_url",
         "satellite_base_url",
+        "ansible_base_url",
         "squad1_base_url",
         "sccm_base_url",
     )
@@ -239,6 +247,7 @@ class Settings(BaseSettings):
             "cmdb": self.cmdb_provider,
             "itsm": self.itsm_provider,
             "satellite": self.satellite_provider,
+            "ansible": self.ansible_provider,
             "squad1": self.squad1_provider,
             "sccm": self.sccm_provider,
         }

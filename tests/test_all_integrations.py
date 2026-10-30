@@ -1,4 +1,4 @@
-"""Integration tests verifying Tenable, CMDB, ITSM/ISTM, and Satellite canonical routes.
+"""Integration tests verifying Tenable, CMDB, ITSM, and Satellite canonical routes.
 
 Validates that:
 1. Exactly one unified route exists per operation (no duplicate /provider/... endpoints).
@@ -96,7 +96,7 @@ def test_cmdb_canonical_routes_and_correlation(client: TestClient):
 
 
 # =====================================================================
-# 3. ITSM & ISTM Integration Tests (BRD 4.4 Canonical Routes)
+# 3. ITSM Integration Tests (BRD 4.4 Canonical Routes)
 # =====================================================================
 
 def test_itsm_canonical_routes(client: TestClient):
@@ -161,11 +161,7 @@ def test_itsm_canonical_routes(client: TestClient):
     assert res_list_wl.status_code == 200, res_list_wl.text
     assert len(res_list_wl.json()["items"]) >= 1
 
-    # 6. Verify /api/v1/istm alias works identically
-    res_istm = client.get("/api/v1/istm/changes")
-    assert res_istm.status_code == 200, res_istm.text
-
-    # 7. POST /api/v1/itsm/import
+    # 6. POST /api/v1/itsm/import
     res_import = client.post("/api/v1/itsm/import")
     assert res_import.status_code == 200, res_import.text
     assert res_import.json()["changes_imported"] >= 1

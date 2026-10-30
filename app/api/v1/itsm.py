@@ -1,4 +1,4 @@
-"""FastAPI endpoints for BMC Helix ITSM (and ISTM alias) change requests and worklogs.
+"""FastAPI endpoints for BMC Helix ITSM change requests and worklogs.
 
 Implements unified BRD Section 4.4 routes:
 - GET /changes (list change requests with optional status filtering)
@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.providers.factory import get_provider
 from app.schemas.itsm import (
     ITSMChangeCreate,
     ITSMChangeListResponse,
@@ -34,18 +35,11 @@ router = APIRouter(
     tags=["BMC Helix ITSM"],
 )
 
-# Alias router for "istm" spelling (hidden from OpenAPI schema to prevent duplicate routes)
-istm_router = APIRouter(
-    prefix="/istm",
-    tags=["BMC Helix ITSM"],
-)
-
-
 def get_itsm_service(
     db: Session = Depends(get_db),
 ) -> ITSMService:
     """Create the ITSM service for the current request."""
-    return ITSMService(db)
+    return ITSMService(db, get_provider("itsm"))
 
 
 @router.get(
@@ -204,12 +198,3 @@ def import_itsm_data(
     return service.import_provider_changes()
 
 
-# ======================================================================
-# Forward all endpoints to the /istm alias router (hidden from OpenAPI schema)
-# ======================================================================
-istm_router.add_api_route("/changes", list_changes, methods=["GET"], response_model=ITSMChangeListResponse, include_in_schema=False)
-istm_router.add_api_route("/changes", create_change, methods=["POST"], response_model=ITSMChangeResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
-istm_router.add_api_route("/changes/{change_id}", get_change, methods=["GET"], response_model=ITSMChangeResponse, include_in_schema=False)
-istm_router.add_api_route("/changes/{change_id}/worklogs", list_change_worklogs, methods=["GET"], response_model=ITSMWorklogListResponse, include_in_schema=False)
-istm_router.add_api_route("/changes/{change_id}/worklogs", create_change_worklog, methods=["POST"], response_model=ITSMWorklogResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
-istm_router.add_api_route("/import", import_itsm_data, methods=["POST"], response_model=ITSMImportResponse, include_in_schema=False)

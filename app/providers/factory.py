@@ -1,6 +1,8 @@
 """Factory for configured integration providers."""
 
 import logging
+from dataclasses import dataclass
+from importlib import import_module
 from threading import RLock
 from typing import Any
 
@@ -14,50 +16,42 @@ from app.providers.tenable_json import TenableJsonProvider
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_INTEGRATIONS = (
-    "tenable",
-    "cmdb",
-    "itsm",
-    "satellite",
-    "squad1",
-    "sccm",
-)
+@dataclass(frozen=True)
+class ProviderRegistration:
+    """Construction metadata for one integration provider family."""
 
-JSON_PROVIDER_CLASSES = {
-    "tenable": TenableJsonProvider,
-    "cmdb": CMDBJsonProvider,
-    "itsm": ITSMJsonProvider,
-    "satellite": SatelliteJsonProvider,
-    "squad1": Squad1JsonProvider,
-    "sccm": SCCMJsonProvider,
+    api_module: str
+    api_class: str
+    json_class: type[Any] | None = None
+
+
+# One registry is the extension point for integration providers. API-only
+# integrations set json_class=None instead of requiring special-case logic.
+PROVIDER_REGISTRY: dict[str, ProviderRegistration] = {
+    "tenable": ProviderRegistration(
+        "app.providers.tenable_api", "TenableAPIProvider", TenableJsonProvider
+    ),
+    "cmdb": ProviderRegistration(
+        "app.providers.cmdb_api", "CMDBAPIProvider", CMDBJsonProvider
+    ),
+    "itsm": ProviderRegistration(
+        "app.providers.itsm_api", "ITSMAPIProvider", ITSMJsonProvider
+    ),
+    "satellite": ProviderRegistration(
+        "app.providers.satellite_api", "SatelliteAPIProvider", SatelliteJsonProvider
+    ),
+    "squad1": ProviderRegistration(
+        "app.providers.squad1_api", "Squad1APIProvider", Squad1JsonProvider
+    ),
+    "sccm": ProviderRegistration(
+        "app.providers.sccm_api", "SCCMAPIProvider", SCCMJsonProvider
+    ),
+    "ansible": ProviderRegistration(
+        "app.providers.ansible_api", "AnsibleAPIProvider"
+    ),
 }
 
-API_PROVIDER_MODULES = {
-    "tenable": (
-        "app.providers.tenable_api",
-        "TenableAPIProvider",
-    ),
-    "cmdb": (
-        "app.providers.cmdb_api",
-        "CMDBAPIProvider",
-    ),
-    "itsm": (
-        "app.providers.itsm_api",
-        "ITSMAPIProvider",
-    ),
-    "satellite": (
-        "app.providers.satellite_api",
-        "SatelliteAPIProvider",
-    ),
-    "squad1": (
-        "app.providers.squad1_api",
-        "Squad1APIProvider",
-    ),
-    "sccm": (
-        "app.providers.sccm_api",
-        "SCCMAPIProvider",
-    ),
-}
+SUPPORTED_INTEGRATIONS = tuple(PROVIDER_REGISTRY)
 
 _provider_cache: dict[str, Any] = {}
 _provider_lock = RLock()
@@ -87,37 +81,25 @@ def _build_provider(integration: str) -> Any:
     """Create a provider using the current application settings."""
     settings = get_settings()
     mode = settings.provider_for(integration)
+    registration = PROVIDER_REGISTRY[integration]
 
     if mode == "json":
-        provider_class = JSON_PROVIDER_CLASSES[integration]
-        return provider_class()
+        if registration.json_class is None:
+            raise ValueError(
+                f"{integration} requires API mode; no JSON provider is available"
+            )
+        return registration.json_class()
 
     if mode == "api":
-        module_name, class_name = API_PROVIDER_MODULES[integration]
-
         try:
-            if integration == "tenable":
-                from app.providers.tenable_api import TenableAPIProvider
-                return TenableAPIProvider()
-            if integration == "cmdb":
-                from app.providers.cmdb_api import CMDBAPIProvider
-                return CMDBAPIProvider()
-            if integration == "itsm":
-                from app.providers.itsm_api import ITSMAPIProvider
-                return ITSMAPIProvider()
-            if integration == "satellite":
-                from app.providers.satellite_api import SatelliteAPIProvider
-                return SatelliteAPIProvider()
-            if integration == "squad1":
-                from app.providers.squad1_api import Squad1APIProvider
-                return Squad1APIProvider()
-            if integration == "sccm":
-                from app.providers.sccm_api import SCCMAPIProvider
-                return SCCMAPIProvider()
+            module = import_module(registration.api_module)
+            provider_class = getattr(module, registration.api_class)
+            return provider_class()
         except (ImportError, AttributeError) as exc:
             raise RuntimeError(
                 f"The {integration} API provider could not be loaded. "
-                f"Verify that {module_name}.{class_name} exists "
+                f"Verify that {registration.api_module}."
+                f"{registration.api_class} exists "
                 "and that its dependencies are installed."
             ) from exc
 

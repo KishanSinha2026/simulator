@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.providers.factory import get_provider
 from app.schemas.satellite import (
     SatelliteHostCreate,
     SatelliteHostListResponse,
@@ -42,7 +43,7 @@ def get_satellite_service(
     db: Session = Depends(get_db),
 ) -> SatelliteService:
     """Create the Satellite service for the current request."""
-    return SatelliteService(db)
+    return SatelliteService(db, get_provider("satellite"))
 
 
 @router.get(

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.providers.factory import get_provider
 from app.schemas.tenable import (
     TenableFindingCreate,
     TenableFindingListResponse,
@@ -33,7 +34,7 @@ def get_tenable_service(
     db: Session = Depends(get_db),
 ) -> TenableService:
     """Build the Tenable service for the current request."""
-    return TenableService(db)
+    return TenableService(db, get_provider("tenable"))
 
 
 @router.get(

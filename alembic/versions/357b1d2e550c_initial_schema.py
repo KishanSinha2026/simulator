@@ -23,8 +23,9 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    """Create the initial VPM360 schema for all registered integrations."""
-    Base.metadata.create_all(bind=op.get_bind(), checkfirst=True)
+    """Create the base schema; later revisions own their additive tables."""
+    tables = [table for table in Base.metadata.sorted_tables if table.name != "ansible_job_runs"]
+    Base.metadata.create_all(bind=op.get_bind(), tables=tables, checkfirst=True)
 
 
 def downgrade() -> None:

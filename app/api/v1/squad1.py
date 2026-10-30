@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.providers.factory import get_provider
 from app.schemas.squad1 import (
     Squad1ExceptionListResponse,
     Squad1ImportResponse,
@@ -34,7 +35,7 @@ def get_squad1_service(
     db: Session = Depends(get_db),
 ) -> Squad1Service:
     """Create Squad1 service for the current request."""
-    return Squad1Service(db)
+    return Squad1Service(db, get_provider("squad1"))
 
 
 @router.get(
@@ -48,6 +49,7 @@ def list_vulnerabilities(
     status_filter: str | None = Query(default=None, alias="status", description="Filter by status (Open, Closed, Exception)"),
     target: str | None = Query(default=None, description="Filter by target IP or hostname"),
     risk_rating: str | None = Query(default=None, description="Filter by risk rating (Critical, High, Medium, Low)"),
+    severity: str | None = Query(default=None, description="BRD alias for risk_rating"),
     service: Squad1Service = Depends(get_squad1_service),
 ) -> dict[str, Any]:
     """Retrieve Squad1 vulnerability findings. Serves live API data if configured, or local/JSON data."""
@@ -57,7 +59,7 @@ def list_vulnerabilities(
             offset=offset,
             status=status_filter,
             target=target,
-            risk_rating=risk_rating,
+            risk_rating=risk_rating or severity,
         )
     except ValueError as exc:
         raise HTTPException(
@@ -77,6 +79,7 @@ def list_findings_alias(
     status_filter: str | None = Query(default=None, alias="status"),
     target: str | None = Query(default=None),
     risk_rating: str | None = Query(default=None),
+    severity: str | None = Query(default=None),
     service: Squad1Service = Depends(get_squad1_service),
 ) -> dict[str, Any]:
     """Alias for listing Squad1 findings."""
@@ -86,6 +89,7 @@ def list_findings_alias(
         status_filter=status_filter,
         target=target,
         risk_rating=risk_rating,
+        severity=severity,
         service=service,
     )
 
