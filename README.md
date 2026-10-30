@@ -26,7 +26,6 @@ Ansible Automation Platform / AWX is available as an API-backed patch execution 
    - [Environment Configuration](#environment-configuration)
    - [Database Setup & Migrations](#database-setup--migrations)
    - [Running the Application](#running-the-application)
-   - [Running the Test Suite](#running-the-test-suite)
 
 ---
 
@@ -52,6 +51,22 @@ Ansible Automation Platform / AWX is available as an API-backed patch execution 
 | **Timestamps** | ISO 8601 strings with timezone offset, e.g. `"2026-10-25T09:15:00Z"`. |
 | **Payload Passthrough** | `source_payload` preserves un-normalized raw vendor fields without schema loss. |
 | **Pagination Limits** | All listing endpoints support pagination up to `limit=50000` (`limit: int = Field(ge=1, le=50000)`). |
+
+### 1.1 BRD Source and Connector Data Verification
+
+The checked BRD-derived source is [`data/extracted_doc_summary.txt`](data/extracted_doc_summary.txt). It defines the connector fields and workflows; the document itself is not stored as application data. Imported connector records are stored in the shared PostgreSQL database. Each integration's `source_payload` column stores source JSON using PostgreSQL `JSONB` (or `JSON` for Ansible job runs), alongside normalized columns for commonly queried fields.
+
+| Connector | BRD data retained in PostgreSQL | Verification status / limitation |
+|---|---|---|
+| Tenable | Original finding and scan JSON; the 54 BRD finding fields are retained under `source_payload._brd_54_fields`. | Field preservation is implemented. The BRD leaves parts of the source API contract pending client confirmation. |
+| Squad1 | Full original source object, including all 82 exact BRD keys, in `squad1_vulnerabilities.source_payload`; commonly used fields are also normalized. | Import maps the BRD key names such as `VulnerabilityNo`, `Target`, and `Vulnerability_Name`. |
+| BMC CMDB | Original server, middleware, database, and relationship objects in JSON payload columns; mapped inventory fields are also stored in columns. | BRD Appendix C fields are mapped where known. Middleware/database class names and writeback details require client configuration. |
+| BMC Helix ITSM | Original Helix entry JSON on import; local change creation stores the BRD's 19 exact create fields under `source_payload.values`. | Field mapping is represented. Approval, maintenance-window, worklog, update, and closure vendor contracts remain pending where the BRD says client confirmation is needed. |
+| Red Hat Satellite | Original host and template JSON; per-host results have their own persisted result rows and payloads. | Host IP/OS aliases are mapped. Public job launch is simulated and does not execute a live Satellite patch job. |
+| SCCM 2509 | Original device, collection, and deployment JSON; per-target deployment results are persisted. | Native SCCM key aliases are mapped. Job launch records a simulated run; it does not submit a live SCCM deployment. |
+| Ansible AAP/AWX | Controller launch/status JSON is stored in `ansible_job_runs.source_payload`; offline fixture templates are in `fixtures/ansible/job_templates.json`. | Current API uses job-template launch. It does not yet implement the BRD 4.7 inventory, ad-hoc command, per-host events, and stdout contract. Fixture launches are explicitly simulated. |
+
+`source_payload` is a JSON object containing connector data, not a file path or a reference to the BRD. It may preserve source fields that do not have dedicated database columns; it does not by itself mean every BRD workflow is implemented or every field is individually queryable.
 
 ---
 
@@ -403,7 +418,7 @@ SCCM 2509 models Windows patching as specified in BRD Section 4.6 (Table 20) and
 
 ### 2.7 Ansible Automation Platform / AWX
 
-The AAP API uses a configured bearer token and API root (`/api/controller/v2` by default; override with `ANSIBLE_API_PREFIX` for older AWX deployments). The token is read from `ANSIBLE_API_KEY` and is not stored in the database. When the controller is unreachable, the integration reads the local Ansible template fixture and safely simulates job launches; it never executes remote changes in fixture mode.
+The AAP API uses a configured bearer token and API root (`/api/controller/v2` by default; override with `ANSIBLE_API_PREFIX` for older AWX deployments). The token is read from `ANSIBLE_API_KEY` and is not stored in the database. When the controller is unreachable, the integration reads the local Ansible template fixture and safely simulates job launches; it never executes remote changes in fixture mode. **BRD 4.7 gap:** this implementation uses AAP job templates and does not yet implement the BRD's inventory host, ad-hoc command, per-host event, and stdout endpoints.
 
 #### Patch Job Launch Request (`POST /api/v1/ansible/jobs`)
 
@@ -501,6 +516,8 @@ Simulation fixture files are stored under `fixtures/`:
 
 ```text
 fixtures/
+├── ansible/
+│   └── job_templates.json      # Offline demo templates; launches are simulated
 ├── cmdb/
 │   ├── databases.json          # Database CIs
 │   ├── middleware.json         # Middleware CIs
@@ -617,24 +634,3 @@ API_BASE_URL = "https://your-fastapi-service.example.com/api/v1"
 
 Do not use `localhost` or `127.0.0.1` in the Cloud secret: those addresses refer to the Streamlit container, not your computer or the separate FastAPI host. The frontend calls FastAPI server-to-server, so the backend needs to be network reachable from Streamlit Cloud.
 
-### Running the Test Suite
-
-Execute the integration test suite validating canonical routes, 20k query throughput, idempotency, Squad1, and SCCM:
-
-```bash
-pytest tests/test_all_integrations.py -v -o pythonpath=.
-```
-
-All 10 integration suites run and pass 100%:
-```text
-tests/test_all_integrations.py::test_tenable_canonical_routes PASSED
-tests/test_all_integrations.py::test_cmdb_canonical_routes_and_correlation PASSED
-tests/test_all_integrations.py::test_itsm_canonical_routes PASSED
-tests/test_all_integrations.py::test_satellite_canonical_routes PASSED
-tests/test_all_integrations.py::test_system_and_health_routes PASSED
-tests/test_all_integrations.py::test_large_dataset_queries_up_to_20k PASSED
-tests/test_all_integrations.py::test_idempotency_and_duplicate_handling PASSED
-tests/test_all_integrations.py::test_squad1_canonical_routes PASSED
-tests/test_all_integrations.py::test_sccm_canonical_routes PASSED
-tests/test_all_integrations.py::test_extended_endpoints PASSED
-```

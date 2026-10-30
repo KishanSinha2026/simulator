@@ -549,9 +549,13 @@ class SatelliteService:
                         existing = existing_map.get(source_id)
                         data = {
                             "source_host_id": source_id,
-                            "name": item.get("name") or source_id,
-                            "ip_address": item.get("ip_address"),
-                            "operating_system": item.get("operating_system"),
+                            "name": item.get("name") or item.get("hostname") or source_id,
+                            "ip_address": item.get("ip_address") or item.get("ip"),
+                            "operating_system": (
+                                item.get("operating_system")
+                                or item.get("operatingsystem_name")
+                                or item.get("operatingsystem")
+                            ),
                             "organization_id": item.get("organization_id"),
                             "location_id": item.get("location_id"),
                             "source_payload": item.get("source_payload") or item,
@@ -593,8 +597,17 @@ class SatelliteService:
                             "source_template_id": source_id,
                             "name": item.get("name") or source_id,
                             "description": item.get("description"),
-                            "template_type": item.get("template_type"),
-                            "input_schema": item.get("input_schema"),
+                            "template_type": (
+                                item.get("template_type")
+                                or item.get("template_kind")
+                                or item.get("job_category")
+                            ),
+                            "input_schema": (
+                                item.get("input_schema")
+                                or item.get("inputs")
+                                if isinstance(item.get("input_schema") or item.get("inputs"), dict)
+                                else None
+                            ),
                             "source_payload": item.get("source_payload") or item,
                         }
                         if existing is None:

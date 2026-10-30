@@ -9,12 +9,13 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field
 class Squad1VulnerabilityBase(BaseModel):
     """Base fields for Squad1 vulnerability records."""
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="allow")
 
     vulnerability_no: str = Field(
         ...,
         min_length=1,
         max_length=100,
+        validation_alias=AliasChoices("vulnerability_no", "VulnerabilityNo"),
         description="Core Squad1 vulnerability identifier",
     )
     plugin_id: int | None = Field(
@@ -25,12 +26,14 @@ class Squad1VulnerabilityBase(BaseModel):
         ...,
         min_length=1,
         max_length=255,
+        validation_alias=AliasChoices("target", "Target"),
         description="Target host IP or FQDN",
     )
     vulnerability_name: str = Field(
         ...,
         min_length=1,
         max_length=500,
+        validation_alias=AliasChoices("vulnerability_name", "Vulnerability_Name"),
         description="Title/name of vulnerability",
     )
     description: str | None = Field(default=None, description="Detailed vulnerability description")

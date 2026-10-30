@@ -116,9 +116,35 @@ class ITSMService:
         """Create a simulated change request in PostgreSQL."""
         data = payload.model_dump()
         if not data.get("source_payload"):
-            data["source_payload"] = payload.model_dump(
-                exclude={"source_change_id", "source_payload"}
-            )
+            data["source_payload"] = {
+                "values": {
+                    "First Name": data.get("first_name"),
+                    "Last Name": data.get("last_name"),
+                    "Status": data.get("status"),
+                    "Impact": data.get("impact"),
+                    "Urgency": data.get("urgency"),
+                    "Location Company": data.get("location_company"),
+                    "Detailed Description": data.get("detailed_description"),
+                    "Company3": data.get("company"),
+                    "Support Organization": data.get("support_organization"),
+                    "Support Group Name": data.get("support_group_name"),
+                    "IBL_ChangeNature": data.get("change_nature"),
+                    "IBL_Nature_Of_Change": data.get("nature_of_change"),
+                    "IBL_Application_Infrastructure": data.get("application_infrastructure"),
+                    "IBL_Downtime_required": data.get("downtime_required"),
+                    "ServiceCI": data.get("service_ci"),
+                    "Description": data.get("description"),
+                    "Environment": data.get("environment"),
+                    "Scheduled Start Date": (
+                        data["scheduled_start_at"].isoformat()
+                        if data.get("scheduled_start_at") else None
+                    ),
+                    "Scheduled End Date": (
+                        data["scheduled_end_at"].isoformat()
+                        if data.get("scheduled_end_at") else None
+                    ),
+                }
+            }
 
         self._validate_schedule(
             data.get("scheduled_start_at"),

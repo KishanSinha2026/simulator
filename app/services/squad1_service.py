@@ -27,6 +27,33 @@ class Squad1Service:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
+    @staticmethod
+    def _source_value(record: dict[str, Any], *keys: str) -> Any:
+        """Read the first populated normalized or exact BRD key."""
+        for key in keys:
+            value = record.get(key)
+            if value not in (None, ""):
+                return value
+        return None
+
+    @staticmethod
+    def _source_datetime(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str) and value.strip():
+            try:
+                return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _source_number(value: Any) -> float | None:
+        try:
+            return float(value) if value not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+
     def list_vulnerabilities(
         self,
         *,
@@ -115,7 +142,14 @@ class Squad1Service:
         payload: Squad1VulnerabilityCreate,
     ) -> Squad1Vulnerability:
         """Idempotently create or update a Squad1 vulnerability."""
-        data = payload.model_dump()
+        dumped = payload.model_dump()
+        column_names = set(Squad1Vulnerability.__table__.columns.keys())
+        data = {key: value for key, value in dumped.items() if key in column_names}
+        raw_payload = payload.model_dump(mode="json", exclude={"source_payload"})
+        data["source_payload"] = {
+            **raw_payload,
+            **(payload.source_payload or {}),
+        }
         vuln_no = data.get("vulnerability_no")
 
         if not vuln_no or not vuln_no.strip():
@@ -163,12 +197,14 @@ class Squad1Service:
 
         for raw in raw_records:
             try:
-                vuln_no = str(raw.get("vulnerability_no") or raw.get("id") or "").strip()
+                vuln_no = str(
+                    self._source_value(raw, "vulnerability_no", "VulnerabilityNo", "id") or ""
+                ).strip()
                 if not vuln_no or vuln_no in seen_nos:
                     continue
                 seen_nos.add(vuln_no)
 
-                if raw.get("exception_id"):
+                if self._source_value(raw, "exception_id", "Exception_ID"):
                     exceptions_count += 1
 
                 allowed_fields = {
@@ -202,20 +238,69 @@ class Squad1Service:
                     "source_payload",
                 }
 
-                data = {
-                    k: v for k, v in raw.items()
-                    if k in allowed_fields
+                aliases = {
+                    "plugin_id": ("plugin_id", "PluginID"),
+                    "target": ("target", "Target"),
+                    "vulnerability_name": ("vulnerability_name", "Vulnerability_Name"),
+                    "description": ("description", "Description"),
+                    "protocol": ("protocol", "Protocol"),
+                    "port": ("port", "Port"),
+                    "risk_rating": ("risk_rating", "Risk_Rating", "severity", "Severity"),
+                    "status": ("status", "STATUS", "Status"),
+                    "recommendation": ("recommendation", "Recommendation"),
+                    "solution_category": ("solution_category", "Solution_Category"),
+                    "plugin_output": ("plugin_output", "POC/Plugin Output"),
+                    "owasp_mapping": ("owasp_mapping", "OWASP_mapping"),
+                    "cve_id": ("cve_id", "CVE_ID"),
+                    "cvss_score": ("cvss_score", "CVSS_Score"),
+                    "risk_type": ("risk_type", "Risk_Type"),
+                    "vulnerability_holder": ("vulnerability_holder", "Vulnerability_Holder"),
+                    "vulnerability_holder_department": (
+                        "vulnerability_holder_department", "Vulnerability_Holder_Department"
+                    ),
+                    "vulnerability_holder_location": (
+                        "vulnerability_holder_location", "Vulnerability_Holder_Location"
+                    ),
+                    "bu_head": ("bu_head", "BU_Head"),
+                    "report_published_date": ("report_published_date", "Report_Published_Date"),
+                    "planned_remediation_date": ("planned_remediation_date", "PlannedRemediationDate"),
+                    "ageing": ("ageing", "Ageing"),
+                    "risk_severity_change_date": (
+                        "risk_severity_change_date", "Risk_Severity_changeDate"
+                    ),
+                    "exception_id": ("exception_id", "Exception_ID"),
+                    "exception_end_date": ("exception_end_date", "Exception_END_Date", "Expiry_Date"),
+                    "exception_status": ("exception_status", "Exception_Status"),
                 }
+                data = {
+                    field: self._source_value(raw, *source_keys)
+                    for field, source_keys in aliases.items()
+                }
+                data = {field: value for field, value in data.items() if field in allowed_fields}
+                data["report_published_date"] = self._source_datetime(data["report_published_date"])
+                data["planned_remediation_date"] = self._source_datetime(data["planned_remediation_date"])
+                data["risk_severity_change_date"] = self._source_datetime(data["risk_severity_change_date"])
+                data["exception_end_date"] = self._source_datetime(data["exception_end_date"])
+                data["cvss_score"] = self._source_number(data["cvss_score"])
+                try:
+                    data["plugin_id"] = int(data["plugin_id"]) if data["plugin_id"] is not None else None
+                except (TypeError, ValueError):
+                    data["plugin_id"] = None
+                try:
+                    data["port"] = int(data["port"]) if data["port"] is not None else None
+                except (TypeError, ValueError):
+                    data["port"] = None
+                try:
+                    data["ageing"] = int(data["ageing"]) if data["ageing"] is not None else None
+                except (TypeError, ValueError):
+                    data["ageing"] = None
+                # Keep all original Squad1 BRD keys and values in PostgreSQL JSONB.
+                data["source_payload"] = dict(raw)
                 data["vulnerability_no"] = vuln_no
-                data["risk_rating"] = (
-                    data.get("risk_rating")
-                    or raw.get("severity")
-                    or raw.get("Severity")
-                )
                 if "target" not in data or not data["target"]:
-                    data["target"] = raw.get("Target") or "unknown-target"
+                    data["target"] = "unknown-target"
                 if "vulnerability_name" not in data or not data["vulnerability_name"]:
-                    data["vulnerability_name"] = raw.get("Vulnerability_Name") or vuln_no
+                    data["vulnerability_name"] = vuln_no
 
                 clean_batch.append((vuln_no, data))
             except Exception:

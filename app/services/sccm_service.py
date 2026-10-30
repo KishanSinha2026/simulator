@@ -395,15 +395,20 @@ class SCCMService:
             try:
                 raw_cols = self.provider.list_collections(limit=50000)
                 for item in raw_cols:
-                    col_id = str(item.get("collection_id") or item.get("id") or "").strip()
+                    col_id = str(
+                        item.get("collection_id")
+                        or item.get("CollectionID")
+                        or item.get("id")
+                        or ""
+                    ).strip()
                     if not col_id:
                         continue
                     existing = self.collection_repo.get_by_collection_id(col_id)
                     data = {
                         "collection_id": col_id,
-                        "name": item.get("name") or col_id,
-                        "comment": item.get("comment"),
-                        "member_count": item.get("member_count", 0),
+                        "name": item.get("name") or item.get("Name") or col_id,
+                        "comment": item.get("comment") or item.get("Comment"),
+                        "member_count": item.get("member_count", item.get("MemberCount", 0)),
                         "source_payload": item.get("source_payload") or item,
                     }
                     if existing is None:
@@ -421,18 +426,33 @@ class SCCMService:
             try:
                 raw_deps = self.provider.list_deployments(limit=50000)
                 for item in raw_deps:
-                    assign_id = str(item.get("assignment_id") or item.get("id") or "").strip()
+                    assign_id = str(
+                        item.get("assignment_id")
+                        or item.get("AssignmentID")
+                        or item.get("id")
+                        or ""
+                    ).strip()
                     if not assign_id:
                         continue
                     existing = self.deployment_repo.get_by_assignment_id(assign_id)
                     data = {
                         "assignment_id": assign_id,
-                        "name": item.get("name") or assign_id,
-                        "target_collection_id": item.get("target_collection_id") or "DEFAULT",
-                        "reboot_policy": item.get("reboot_policy"),
-                        "status": item.get("status", "Active"),
-                        "window_start": item.get("window_start"),
-                        "window_end": item.get("window_end"),
+                        "name": item.get("name") or item.get("AssignmentName") or item.get("Name") or assign_id,
+                        "target_collection_id": (
+                            item.get("target_collection_id")
+                            or item.get("TargetCollectionID")
+                            or item.get("CollectionID")
+                            or item.get("collection_id")
+                            or "DEFAULT"
+                        ),
+                        "reboot_policy": item.get("reboot_policy") or item.get("RebootPolicy"),
+                        "status": item.get("status") or item.get("Status") or "Active",
+                        "window_start": self._parse_datetime(
+                            item.get("window_start") or item.get("WindowStart") or item.get("StartTime")
+                        ),
+                        "window_end": self._parse_datetime(
+                            item.get("window_end") or item.get("WindowEnd") or item.get("Deadline")
+                        ),
                         "source_payload": item.get("source_payload") or item,
                     }
                     if existing is None:

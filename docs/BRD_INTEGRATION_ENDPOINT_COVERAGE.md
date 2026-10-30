@@ -1,8 +1,9 @@
 # BRD integration endpoint coverage
 
-This inventory compares the VPM360 routes in `app/api/v1` and the external
-routes used by providers with Sections 4.1-4.6 and 8.5.5 of the BRD. Paths on a
-provider are called by VPM360; they are not public VPM360 routes.
+This inventory compares the VPM360 routes in `app/api/v1`, stored integration
+records, and external routes used by providers with the BRD in
+`data/extracted_doc_summary.txt`. Paths on a provider are called by VPM360;
+they are not public VPM360 routes.
 
 ## Tenable — BRD 4.1
 
@@ -61,18 +62,19 @@ the service; it does not execute a remote patch job. Do not treat it as live
 execution until the BRD approval, target, and template controls are wired and
 validated.
 
-## Ansible Automation Platform / AWX
+## Ansible Automation Platform / AWX — BRD 4.7
 
-The BRD artifact available in this repository does not define a separate
-Ansible contract. A dedicated `/api/v1/ansible` integration is implemented for
-AWX/AAP API v2 using a bearer API key: template listing, job launch, status
-refresh, cancellation, and a non-mutating connection check at
-`GET /api/v1/ansible/connection`. A caller must provide exact hostnames/IPs in
-`limit`; broad host patterns are rejected. Active Squad1 exceptions block a
-matching launch. Executions are recorded in `ansible_job_runs`. Confirm the bank's
-controller URL, approved template IDs, inventory/host limit conventions,
-extra-vars contract, and approval controls before production use. The API key
-must be supplied through environment configuration or a secret manager.
+The BRD requires inventory host listing, ad-hoc command schema discovery,
+approved script execution, command status, per-host events, stdout evidence, and
+cancellation. The current `/api/v1/ansible` integration instead lists job
+templates and launches `job_templates/{id}/launch/`; it does not implement the
+BRD's `inventories/{id}/ad_hoc_commands` and events/stdout contract. It stores
+launch/status payloads in `ansible_job_runs`, but does not persist inventory
+hosts or normalized per-host event/evidence records. The JSON fixture fallback
+stores static demo templates and marks launches simulated. Therefore the AAP
+JSON retention exists, but the execution and per-host data model do not yet
+match BRD 4.7. Confirm the Controller version, inventory IDs, permissions, and
+approved scripts before implementing the live contract.
 
 ## SCCM — BRD 4.6 and 8.5.5
 
@@ -107,8 +109,13 @@ normalized SCCM `client_version` field (backfilled from retained payloads),
 `9b6f1c4e8a20` makes `reboot_pending` a required boolean. The checked database
 is at `9b6f1c4e8a20` and has no model/table column drift.
 
-The repository does not contain the source BRD file itself. Per user direction,
-coverage claims above use the checked-in README's BRD-derived schemas and this
-endpoint inventory as the requirements basis; client-specific routes marked
-pending still need their vendor API contracts before live integration can be
-asserted.
+The extracted BRD source is `data/extracted_doc_summary.txt`. Its Appendix A
+Tenable fields are preserved in the finding payload; Appendix B Squad1 records
+are retained in full in `squad1_vulnerabilities.source_payload`; Appendix C
+CMDB inventory fields are normalized where mapped and the original source
+objects are retained; Appendix D Helix fields are mapped to normalized columns
+and raw entry JSON is retained. Satellite, SCCM, and Ansible source objects are
+also retained in their respective JSON/JSONB `source_payload` columns. This
+preserves source JSON but does not mean every BRD field has a dedicated column
+or that every execution/reporting workflow is implemented. Client contracts
+marked pending remain unverified.
