@@ -66,3 +66,4 @@ temp/
 docker-compose.override.yml
 
 data/
+docs/
