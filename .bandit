@@ -1,3 +1,0 @@
-[bandit]
-exclude = .venv,venv,tests,./tests,.\tests
-skips = B101

@@ -7,6 +7,7 @@ from threading import RLock
 from typing import Any
 
 from app.core.config import get_settings
+from app.providers.ansible_json import AnsibleJsonProvider
 from app.providers.cmdb_json import CMDBJsonProvider
 from app.providers.itsm_json import ITSMJsonProvider
 from app.providers.satellite_json import SatelliteJsonProvider
@@ -47,7 +48,7 @@ PROVIDER_REGISTRY: dict[str, ProviderRegistration] = {
         "app.providers.sccm_api", "SCCMAPIProvider", SCCMJsonProvider
     ),
     "ansible": ProviderRegistration(
-        "app.providers.ansible_api", "AnsibleAPIProvider"
+        "app.providers.ansible_api", "AnsibleAPIProvider", AnsibleJsonProvider
     ),
 }
 

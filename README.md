@@ -4,7 +4,7 @@ Enterprise vulnerability management and remediation integration simulator for **
 
 The simulator provides unified integration endpoints for **Tenable**, **BMC Helix CMDB**, **BMC Helix ITSM**, **Red Hat Satellite**, **Squad1**, **Microsoft SCCM 2509**, and **Ansible Automation Platform (AAP/AWX)**. Integrations can use configured vendor APIs or local PostgreSQL / JSON fixtures; a public workflow route may still be simulated when execution controls or client API contracts are pending.
 
-Ansible Automation Platform / AWX is available as an API-backed patch execution integration. Configure `ANSIBLE_PROVIDER=api`, `ANSIBLE_BASE_URL`, and `ANSIBLE_API_KEY` in the environment (never commit the key). The API prefix defaults to `/api/controller/v2` for current AAP; set `ANSIBLE_API_PREFIX=/api/v2` for AWX/older controller deployments. `GET /api/v1/ansible/connection` checks API connectivity and authentication without launching a job. Other routes under `/api/v1/ansible` list job templates, launch jobs, refresh job status, and request cancellation. Launching a job can execute changes on selected hosts; restrict the API and controller template permissions accordingly. Job history is stored in `ansible_job_runs`; apply the Alembic migration before use.
+Ansible Automation Platform / AWX is available as an API-backed patch execution integration with a JSON fixture fallback. Configure `ANSIBLE_PROVIDER=api`, `ANSIBLE_BASE_URL`, and `ANSIBLE_API_KEY` in the environment (never commit the key). The API prefix defaults to `/api/controller/v2` for current AAP; set `ANSIBLE_API_PREFIX=/api/v2` for AWX/older controller deployments. If the API is unreachable or not configured, template listing uses `fixtures/ansible/job_templates.json` and launches are marked `simulated`; no host commands are run in fallback mode. Authentication and permission failures do not trigger fallback. `GET /api/v1/ansible/connection` reports whether the controller is connected and whether fixture mode is active. Job history is stored in PostgreSQL `ansible_job_runs`; apply the Alembic migration before use.
 
 ---
 
@@ -403,7 +403,7 @@ SCCM 2509 models Windows patching as specified in BRD Section 4.6 (Table 20) and
 
 ### 2.7 Ansible Automation Platform / AWX
 
-The AAP API uses a configured bearer token and API root (`/api/controller/v2` by default; override with `ANSIBLE_API_PREFIX` for older AWX deployments). The token is read from `ANSIBLE_API_KEY` and is not stored in the database.
+The AAP API uses a configured bearer token and API root (`/api/controller/v2` by default; override with `ANSIBLE_API_PREFIX` for older AWX deployments). The token is read from `ANSIBLE_API_KEY` and is not stored in the database. When the controller is unreachable, the integration reads the local Ansible template fixture and safely simulates job launches; it never executes remote changes in fixture mode.
 
 #### Patch Job Launch Request (`POST /api/v1/ansible/jobs`)
 
@@ -423,7 +423,7 @@ The AAP API uses a configured bearer token and API root (`/api/controller/v2` by
 | `limit` | string | Yes | Explicit Ansible host pattern to constrain targets. |
 | `extra_vars` | object | No | Variables accepted by the selected template. |
 
-The job detail response includes the local `id`, remote `job_id`, `job_template_id`, `status`, `limit`, `extra_vars`, `started_at`, `finished_at`, and `source_payload`. Connection responses contain `connected`, `controller`, and `api_version` without returning the configured token.
+The job detail response includes the local `id`, remote or simulated `job_id`, `job_template_id`, `status`, `limit`, `extra_vars`, `started_at`, `finished_at`, and `source_payload`. Launch responses include `simulated`. Connection responses contain `connected`, `controller`, `api_version`, `provider_mode`, and `fallback_reason` without returning the configured token.
 
 The read-only connection check is `GET /api/v1/ansible/connection`; template listing is `GET /api/v1/ansible/job-templates`; job status and cancellation use `/api/v1/ansible/jobs/{id}` and `/api/v1/ansible/jobs/{id}/cancel`.
 

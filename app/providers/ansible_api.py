@@ -6,6 +6,7 @@ from urllib.parse import quote
 import httpx
 
 from app.core.config import get_settings
+from app.providers.ansible_fallback import AnsibleAPIUnavailable
 
 
 class AnsibleAPIProvider:
@@ -43,13 +44,19 @@ class AnsibleAPIProvider:
             response.raise_for_status()
         except httpx.HTTPStatusError as exc:
             code = exc.response.status_code
+            if code >= 500:
+                raise AnsibleAPIUnavailable(
+                    f"Ansible controller is unavailable (HTTP {code})"
+                ) from exc
             if code in (401, 403):
                 raise RuntimeError(f"Ansible authentication or permission failure (HTTP {code})") from exc
             if code == 404:
                 raise RuntimeError("Ansible resource was not found") from exc
             raise RuntimeError(f"Ansible API request failed (HTTP {code})") from exc
         except httpx.HTTPError as exc:
-            raise RuntimeError("Ansible API request failed due to a connection error") from exc
+            raise AnsibleAPIUnavailable(
+                "Ansible API request failed due to a connection error"
+            ) from exc
         if not response.content:
             return {}
         try:

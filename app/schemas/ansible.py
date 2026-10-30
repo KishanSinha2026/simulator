@@ -14,6 +14,8 @@ class AnsibleConnectionResponse(BaseModel):
     connected: bool
     controller: str | None = None
     api_version: str | None = None
+    provider_mode: str = "api"
+    fallback_reason: str | None = None
 
 
 class AnsibleLaunchRequest(BaseModel):
@@ -71,6 +73,7 @@ class AnsibleJobLaunchResponse(BaseModel):
     job_id: str
     status: str
     job_template_id: str
+    simulated: bool = False
 
 
 class AnsibleJobRunResponse(BaseModel):

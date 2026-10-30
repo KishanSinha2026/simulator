@@ -150,7 +150,7 @@ class Settings(BaseSettings):
     satellite_verify_tls: bool = True
 
     # Ansible Automation Platform / AWX
-    ansible_provider: ProviderMode = "json"
+    ansible_provider: ProviderMode = "api"
     ansible_base_url: str = ""
     ansible_api_prefix: str = "/api/controller/v2"
     ansible_api_key: SecretStr | None = None

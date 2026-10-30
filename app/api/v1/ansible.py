@@ -6,10 +6,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.ansible import AnsibleJobRun
 from app.providers.factory import get_provider
+from app.providers.ansible_fallback import AnsibleFallbackProvider
+from app.providers.ansible_json import AnsibleJsonProvider
 from app.services.patching_guard import active_exception_targets
 from app.schemas.ansible import (
     AnsibleConnectionResponse,
@@ -23,12 +24,13 @@ from app.schemas.ansible import (
 router = APIRouter(prefix="/ansible", tags=["Ansible Automation"])
 
 def _provider():
-    if get_settings().ansible_provider != "api":
-        raise HTTPException(status_code=503, detail="Ansible API provider is not enabled")
     try:
-        return get_provider("ansible")
-    except (ValueError, RuntimeError) as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        configured_provider = get_provider("ansible")
+    except (ValueError, RuntimeError):
+        return AnsibleJsonProvider()
+    if isinstance(configured_provider, AnsibleJsonProvider):
+        return configured_provider
+    return AnsibleFallbackProvider(configured_provider, AnsibleJsonProvider())
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -61,9 +63,11 @@ def test_connection() -> dict[str, Any]:
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {
-        "connected": True,
+        "connected": bool(data.get("connected", True)),
         "controller": data.get("name") or data.get("description"),
         "api_version": data.get("version"),
+        "provider_mode": data.get("provider_mode", "api"),
+        "fallback_reason": data.get("fallback_reason"),
     }
 
 
@@ -95,7 +99,13 @@ def launch_job(payload: AnsibleLaunchRequest, db: Session = Depends(get_db)) -> 
     db.add(run)
     db.commit()
     db.refresh(run)
-    return {"id": run.id, "job_id": run.source_job_id, "status": run.status, "job_template_id": run.job_template_id}
+    return {
+        "id": run.id,
+        "job_id": run.source_job_id,
+        "status": run.status,
+        "job_template_id": run.job_template_id,
+        "simulated": bool((run.source_payload or {}).get("is_simulated")),
+    }
 
 
 @router.get("/jobs/{job_id}", response_model=AnsibleJobRunResponse)
@@ -103,10 +113,13 @@ def get_job(job_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
     run = db.get(AnsibleJobRun, job_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Ansible job run not found")
-    try:
-        data = _provider().get_job(run.source_job_id)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if (run.source_payload or {}).get("is_simulated"):
+        data = run.source_payload
+    else:
+        try:
+            data = _provider().get_job(run.source_job_id)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
     run.status = str(data.get("status") or run.status)
     run.started_at = _parse_datetime(data.get("started")) or run.started_at
     run.finished_at = _parse_datetime(data.get("finished")) or run.finished_at
@@ -122,10 +135,13 @@ def cancel_job(job_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
     run = db.get(AnsibleJobRun, job_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Ansible job run not found")
-    try:
-        data = _provider().cancel_job(run.source_job_id)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if (run.source_payload or {}).get("is_simulated"):
+        data = AnsibleJsonProvider().cancel_job(run.source_job_id)
+    else:
+        try:
+            data = _provider().cancel_job(run.source_job_id)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
     run.status = str(data.get("status") or "cancel_requested")
     run.source_payload = data
     db.commit()
