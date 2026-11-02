@@ -440,9 +440,9 @@ The AAP API uses a configured bearer token and API root (`/api/controller/v2` by
 | `limit` | string | Yes | Explicit Ansible host pattern to constrain targets. |
 | `extra_vars` | object | No | Variables accepted by the selected template. |
 
-The job detail response includes the local `id`, remote or simulated `job_id`, `job_template_id`, `status`, `limit`, `extra_vars`, `started_at`, `finished_at`, and `source_payload`. Launch responses include `simulated`. Connection responses contain `connected`, `controller`, `api_version`, `provider_mode`, and `fallback_reason` without returning the configured token.
+The job list response includes the local `id` and remote `job_id`; detail and cancel routes accept either identifier. Job detail includes `job_template_id`, `status`, `limit`, `extra_vars`, `started_at`, `finished_at`, and `source_payload`. Launch responses include `simulated`. Connection responses contain `connected`, `controller`, `api_version`, `provider_mode`, and `fallback_reason` without returning the configured token.
 
-The read-only connection check is `GET /api/v1/ansible/connection`; template listing is `GET /api/v1/ansible/job-templates`; job status and cancellation use `/api/v1/ansible/jobs/{id}` and `/api/v1/ansible/jobs/{id}/cancel`.
+The read-only connection check is `GET /api/v1/ansible/connection`; template listing is `GET /api/v1/ansible/job-templates`; controller job history is fetched and synchronized to PostgreSQL through `GET /api/v1/ansible/jobs?limit=100&offset=0`; job status and cancellation use `/api/v1/ansible/jobs/{id}` and `/api/v1/ansible/jobs/{id}/cancel`.
 
 ---
 
@@ -501,6 +501,7 @@ The table below lists the main public operations. The generated OpenAPI document
 | | `POST` | `/api/v1/sccm/import?limit=50000&offset=0` | Synchronize one page of devices, collections, deployments, and fixture-backed simulated run/result history into PostgreSQL |
 | **Ansible AAP** | `GET` | `/api/v1/ansible/connection` | Test controller API access or report fixture mode without launching a job |
 | | `GET` | `/api/v1/ansible/job-templates` | List controller job templates |
+| | `GET` | `/api/v1/ansible/jobs?limit=100&offset=0` | Fetch paginated controller job history and upsert status/payloads in PostgreSQL |
 | | `POST` | `/api/v1/ansible/import?limit=50000&offset=0` | Import one page of job templates and their source JSON into PostgreSQL |
 | | `POST` | `/api/v1/ansible/jobs` | Launch an Ansible job with an explicit target `limit` and `extra_vars` |
 | | `GET` | `/api/v1/ansible/jobs/{id}` | Refresh and persist controller job status |

@@ -103,6 +103,41 @@ class AnsibleAPIProvider:
             "next": f"?offset={next_offset}" if has_next and next_offset < total else None,
         }
 
+    def list_jobs(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
+        """Fetch controller jobs using AAP's page-based pagination."""
+        if not 1 <= limit <= 50000 or offset < 0:
+            raise ValueError("limit must be between 1 and 50000 and offset cannot be negative")
+        page_size = min(limit, 200)
+        page = offset // page_size + 1
+        skip = offset % page_size
+        results: list[dict[str, Any]] = []
+        total = 0
+        has_next = False
+        while len(results) < limit:
+            data = self._request(
+                "GET", "jobs/",
+                params={"page_size": page_size, "page": page},
+            )
+            batch = data.get("results", [])
+            if not isinstance(batch, list):
+                raise RuntimeError("Ansible job response has an invalid results array")
+            total = int(data.get("count") or 0)
+            if skip:
+                batch = batch[skip:]
+                skip = 0
+            results.extend(item for item in batch if isinstance(item, dict))
+            has_next = bool(data.get("next"))
+            if not has_next or not batch:
+                break
+            page += 1
+        results = results[:limit]
+        next_offset = offset + len(results)
+        return {
+            "results": results,
+            "count": total,
+            "next": f"?offset={next_offset}" if has_next and next_offset < total else None,
+        }
+
     def test_connection(self) -> dict[str, Any]:
         """Check API authentication and basic access to the controller."""
         return self._request("GET", "")

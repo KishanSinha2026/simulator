@@ -10,6 +10,10 @@ streamlit_app.py
 tests
 data
 *.docx
+*.md
+*.txt
+*.xlsx
 docs
+*.xlsx
 *.md
 

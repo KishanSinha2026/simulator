@@ -33,6 +33,12 @@ class AnsibleJsonProvider:
             "fallback_reason": "AAP API is unavailable; fixture mode is active",
         }
 
+    def list_jobs(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
+        """Fixture mode has no controller execution history to list."""
+        if not 1 <= limit <= 50000 or offset < 0:
+            raise ValueError("limit must be between 1 and 50000 and offset cannot be negative")
+        return {"results": [], "count": 0, "next": None}
+
     def launch_job(
         self,
         template_id: str,

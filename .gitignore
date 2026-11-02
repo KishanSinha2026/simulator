@@ -66,4 +66,10 @@ temp/
 docker-compose.override.yml
 
 data/
+*.docx
+*.md
+*.txt
+*.xlsx
 docs/
+*.xlsx
+*.md

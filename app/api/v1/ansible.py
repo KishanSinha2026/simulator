@@ -1,6 +1,7 @@
 """Ansible Automation Platform job template and patch execution routes."""
 
 from datetime import datetime
+import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -18,6 +19,7 @@ from app.schemas.ansible import (
     AnsibleJobCancelResponse,
     AnsibleJobLaunchResponse,
     AnsibleJobRunResponse,
+    AnsibleJobRunListResponse,
     AnsibleJobTemplateListResponse,
     AnsibleLaunchRequest,
 )
@@ -42,6 +44,42 @@ def _parse_datetime(value: Any) -> datetime | None:
             return datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
             return None
+    return None
+
+
+def _parse_extra_vars(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _job_response(run: AnsibleJobRun) -> dict[str, Any]:
+    return {
+        "id": run.id,
+        "job_id": run.source_job_id,
+        "job_template_id": run.job_template_id,
+        "status": run.status,
+        "limit": run.limit,
+        "extra_vars": run.extra_vars or {},
+        "started_at": run.started_at,
+        "finished_at": run.finished_at,
+        "source_payload": run.source_payload,
+    }
+
+
+def _find_job_run(db: Session, job_id: str) -> AnsibleJobRun | None:
+    """Accept either the controller's job ID or VPM360's local row ID."""
+    run = db.query(AnsibleJobRun).filter_by(source_job_id=job_id).one_or_none()
+    if run is not None:
+        return run
+    if job_id.isdecimal():
+        return db.get(AnsibleJobRun, int(job_id))
     return None
 
 
@@ -107,6 +145,60 @@ def test_connection(db: Session = Depends(get_db)) -> dict[str, Any]:
     return check_connector_connection("ansible", db)
 
 
+@router.get("/jobs", response_model=AnsibleJobRunListResponse)
+def list_jobs(
+    limit: int = Query(100, ge=1, le=50000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Fetch recent controller jobs and upsert their status into PostgreSQL."""
+    try:
+        data = _provider().list_jobs(limit=limit, offset=offset)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    for item in data.get("results", []):
+        source_id = str(item.get("id") or "").strip()
+        if not source_id:
+            continue
+        template_id = item.get("job_template") or item.get("unified_job_template") or "unknown"
+        run = db.query(AnsibleJobRun).filter_by(source_job_id=source_id).one_or_none()
+        values = {
+            "source_job_id": source_id,
+            "job_template_id": str(template_id),
+            "status": str(item.get("status") or "unknown"),
+            "limit": item.get("limit") or None,
+            "extra_vars": _parse_extra_vars(item.get("extra_vars")),
+            "started_at": _parse_datetime(item.get("started")),
+            "finished_at": _parse_datetime(item.get("finished")),
+            "source_payload": item,
+        }
+        if run is None:
+            db.add(AnsibleJobRun(**values))
+        else:
+            for key, value in values.items():
+                setattr(run, key, value)
+    db.commit()
+
+    source_ids = [str(item.get("id")) for item in data.get("results", []) if item.get("id") is not None]
+    records = (
+        db.query(AnsibleJobRun)
+        .filter(AnsibleJobRun.source_job_id.in_(source_ids))
+        .all()
+        if source_ids else []
+    )
+    by_source_id = {record.source_job_id: record for record in records}
+    return {
+        "items": [
+            _job_response(by_source_id[str(item["id"])])
+            for item in data.get("results", [])
+            if str(item.get("id")) in by_source_id
+        ],
+        "count": int(data.get("count") or 0),
+        "next": data.get("next"),
+    }
+
+
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED, response_model=AnsibleJobLaunchResponse)
 def launch_job(payload: AnsibleLaunchRequest, db: Session = Depends(get_db)) -> dict[str, Any]:
     """Launch an AWX/AAP job; this can execute patch changes on target hosts."""
@@ -145,8 +237,8 @@ def launch_job(payload: AnsibleLaunchRequest, db: Session = Depends(get_db)) -> 
 
 
 @router.get("/jobs/{job_id}", response_model=AnsibleJobRunResponse)
-def get_job(job_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
-    run = db.get(AnsibleJobRun, job_id)
+def get_job(job_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+    run = _find_job_run(db, job_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Ansible job run not found")
     if (run.source_payload or {}).get("is_simulated"):
@@ -161,14 +253,12 @@ def get_job(job_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
     run.finished_at = _parse_datetime(data.get("finished")) or run.finished_at
     run.source_payload = data
     db.commit()
-    return {"id": run.id, "job_id": run.source_job_id, "job_template_id": run.job_template_id, "status": run.status,
-            "limit": run.limit, "extra_vars": run.extra_vars, "started_at": run.started_at, "finished_at": run.finished_at,
-            "source_payload": run.source_payload}
+    return _job_response(run)
 
 
 @router.post("/jobs/{job_id}/cancel", response_model=AnsibleJobCancelResponse)
-def cancel_job(job_id: int, db: Session = Depends(get_db)) -> dict[str, Any]:
-    run = db.get(AnsibleJobRun, job_id)
+def cancel_job(job_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
+    run = _find_job_run(db, job_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Ansible job run not found")
     if (run.source_payload or {}).get("is_simulated"):

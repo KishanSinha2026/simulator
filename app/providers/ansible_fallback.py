@@ -31,6 +31,9 @@ class AnsibleFallbackProvider:
         except AnsibleAPIUnavailable:
             return self.fallback_provider.test_connection()
 
+    def list_jobs(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
+        return self._call("list_jobs", limit=limit, offset=offset)
+
     def launch_job(self, template_id: str, *, limit: str | None, extra_vars: dict[str, Any]) -> dict[str, Any]:
         return self._call("launch_job", template_id, limit=limit, extra_vars=extra_vars)
 

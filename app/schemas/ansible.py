@@ -90,6 +90,14 @@ class AnsibleJobRunResponse(BaseModel):
     source_payload: dict[str, Any] | None = None
 
 
+class AnsibleJobRunListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AnsibleJobRunResponse]
+    count: int = Field(ge=0)
+    next: str | None = None
+
+
 class AnsibleJobCancelResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
