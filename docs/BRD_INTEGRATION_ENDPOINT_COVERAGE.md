@@ -6,7 +6,7 @@ records, and external routes used by providers with the BRD in
 they are not public VPM360 routes.
 
 The workbook [`VPM360_BRD_API_Backend_Mapping.xlsx`](VPM360_BRD_API_Backend_Mapping.xlsx)
-contains the BRD endpoint map, all 61 current VPM360 route declarations,
+contains the BRD endpoint map, all 60 current VPM360 route declarations,
 fixture-to-PostgreSQL JSON equality results, and unresolved BRD gaps.
 
 ## Connector connection checks — BRD 3.1
