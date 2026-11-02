@@ -11,10 +11,10 @@ class SCCMJsonProvider:
     """Read and manage simulated SCCM records in JSON files."""
 
     def __init__(self) -> None:
-        self.devices = JsonProvider("sccm/devices.json")
-        self.collections = JsonProvider("sccm/collections.json")
-        self.deployments = JsonProvider("sccm/deployments.json")
-        self.deployment_runs = JsonProvider("sccm/deployment_runs.json")
+        self.devices = JsonProvider("sccm/multidevices.json")
+        self.collections = JsonProvider("sccm/multicollections.json")
+        self.deployments = JsonProvider("sccm/multideployments.json")
+        self.deployment_runs = JsonProvider("sccm/multideployment_runs.json")
 
     def list_devices(
         self,

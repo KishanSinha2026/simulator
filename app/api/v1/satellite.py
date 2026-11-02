@@ -30,6 +30,8 @@ from app.schemas.satellite import (
     SatelliteJobRunResponse,
     SatelliteJobTemplateListResponse,
 )
+from app.schemas.connection import ConnectorConnectionResponse
+from app.services.connection_service import check_connector_connection
 from app.services.satellite_service import SatelliteService
 
 
@@ -44,6 +46,12 @@ def get_satellite_service(
 ) -> SatelliteService:
     """Create the Satellite service for the current request."""
     return SatelliteService(db, get_provider("satellite"))
+
+
+@router.get("/connection", response_model=ConnectorConnectionResponse)
+def test_connection() -> dict[str, Any]:
+    """Check Satellite API reachability/authentication or fixture availability."""
+    return check_connector_connection("satellite")
 
 
 @router.get(

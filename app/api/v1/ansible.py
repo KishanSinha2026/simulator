@@ -7,13 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.ansible import AnsibleJobRun
+from app.models.ansible import AnsibleJobRun, AnsibleJobTemplate
 from app.providers.factory import get_provider
 from app.providers.ansible_fallback import AnsibleFallbackProvider
 from app.providers.ansible_json import AnsibleJsonProvider
+from app.schemas.connection import ConnectorConnectionResponse
+from app.services.connection_service import check_connector_connection
 from app.services.patching_guard import active_exception_targets
 from app.schemas.ansible import (
-    AnsibleConnectionResponse,
     AnsibleJobCancelResponse,
     AnsibleJobLaunchResponse,
     AnsibleJobRunResponse,
@@ -45,30 +46,65 @@ def _parse_datetime(value: Any) -> datetime | None:
 
 
 @router.get("/job-templates", response_model=AnsibleJobTemplateListResponse)
-def list_job_templates(limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0)) -> dict[str, Any]:
+def list_job_templates(
+    limit: int = Query(100, ge=1, le=50000),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    if db.query(AnsibleJobTemplate).count() == 0:
+        _import_templates(db, limit=50000, offset=0)
+    query = db.query(AnsibleJobTemplate).order_by(AnsibleJobTemplate.id)
+    count = query.count()
+    rows = query.offset(offset).limit(limit).all()
+    next_offset = offset + len(rows)
+    return {
+        "items": [row.source_payload for row in rows],
+        "count": count,
+        "next": f"?offset={next_offset}" if next_offset < count else None,
+    }
+
+
+def _import_templates(db: Session, *, limit: int, offset: int) -> dict[str, Any]:
     try:
         data = _provider().list_templates(limit=limit, offset=offset)
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {"items": data.get("results", []), "count": data.get("count", 0), "next": data.get("next")}
+    imported = 0
+    for item in data.get("results", []):
+        source_id = str(item.get("id") or item.get("source_template_id") or "").strip()
+        if not source_id:
+            continue
+        row = db.query(AnsibleJobTemplate).filter_by(source_template_id=source_id).one_or_none()
+        values = {
+            "source_template_id": source_id,
+            "name": str(item.get("name") or source_id),
+            "description": item.get("description"),
+            "source_payload": item,
+        }
+        if row is None:
+            db.add(AnsibleJobTemplate(**values))
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
+        imported += 1
+    db.commit()
+    return {"status": "completed", "templates_imported": imported, "count": data.get("count", 0), "limit": limit, "offset": offset}
 
 
-@router.get("/connection", response_model=AnsibleConnectionResponse)
+@router.post("/import")
+def import_job_templates(
+    limit: int = Query(50000, ge=1, le=50000, description="Maximum templates to import"),
+    offset: int = Query(0, ge=0, description="Number of templates to skip"),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Import a page of AAP templates into PostgreSQL, retaining the source JSON."""
+    return _import_templates(db, limit=limit, offset=offset)
+
+
+@router.get("/connection", response_model=ConnectorConnectionResponse)
 def test_connection() -> dict[str, Any]:
-    """Check connectivity and API authentication without launching a job."""
-    try:
-        data = _provider().test_connection()
-    except HTTPException:
-        raise
-    except RuntimeError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return {
-        "connected": bool(data.get("connected", True)),
-        "controller": data.get("name") or data.get("description"),
-        "api_version": data.get("version"),
-        "provider_mode": data.get("provider_mode", "api"),
-        "fallback_reason": data.get("fallback_reason"),
-    }
+    """Check controller connectivity without masking API failure as fixture mode."""
+    return check_connector_connection("ansible")
 
 
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED, response_model=AnsibleJobLaunchResponse)

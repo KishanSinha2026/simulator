@@ -10,7 +10,7 @@ class Squad1JsonProvider:
     """Read and manage simulated Squad1 records in JSON files."""
 
     def __init__(self) -> None:
-        self.vulnerabilities = JsonProvider("squad1/vulnerabilities.json")
+        self.vulnerabilities = JsonProvider("squad1/multivulnerabilities.json")
 
     def list_vulnerabilities(
         self,

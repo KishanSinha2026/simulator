@@ -7,7 +7,7 @@ from typing import Any
 import re
 
 
-TENABLE_BRD_54_FIELDS: tuple[str, ...] = (
+TENABLE_FINDING_SOURCE_FIELDS: tuple[str, ...] = (
     "Plugin",
     "Plugin Name",
     "Family",
@@ -390,8 +390,8 @@ def normalize_tenable_record(
     """Map one detailed source finding to the existing VPM360 model.
 
     All 54 BRD source labels are retained in source_payload under
-    ``_brd_54_fields``. Missing values are explicit and listed under
-    ``_brd_missing_fields``; the normalizer does not claim that a missing
+    ``finding_source_fields``. Missing values are explicit and listed under
+    ``missing_finding_source_fields``; the normalizer does not claim that a missing
     source value was retrieved.
     """
     if not isinstance(record, dict):
@@ -399,7 +399,7 @@ def normalize_tenable_record(
 
     snapshot: dict[str, Any] = {
         field: _lookup(record, field)
-        for field in TENABLE_BRD_54_FIELDS
+        for field in TENABLE_FINDING_SOURCE_FIELDS
     }
 
     missing_fields = [
@@ -454,9 +454,9 @@ def normalize_tenable_record(
         # into dedicated columns in the existing database schema.
         "raw_record": record,
         "scan_metadata": scan_metadata,
-        "_brd_54_fields": snapshot,
-        "_brd_missing_fields": missing_fields,
-        "_brd_normalization": {
+        "finding_source_fields": snapshot,
+        "missing_finding_source_fields": missing_fields,
+        "normalization_metadata": {
             "actionable": actionable,
             "normalized_cvss_base_score": normalized_cvss,
             "normalized_cvss_source": normalized_cvss_source,
@@ -493,10 +493,10 @@ def normalize_tenable_record(
     }
 
 
-def missing_brd_fields(record: dict[str, Any]) -> list[str]:
+def missing_finding_source_fields(record: dict[str, Any]) -> list[str]:
     """Return BRD labels for which the record has no source value."""
     return [
         field
-        for field in TENABLE_BRD_54_FIELDS
+        for field in TENABLE_FINDING_SOURCE_FIELDS
         if _lookup(field, field, record) in (None, "")
     ]

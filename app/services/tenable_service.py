@@ -149,8 +149,8 @@ class TenableService:
 
         if (
             isinstance(payload, dict)
-            and isinstance(payload.get("_brd_54_fields"), dict)
-            and isinstance(payload.get("_brd_normalization"), dict)
+            and isinstance(payload.get("finding_source_fields"), dict)
+            and isinstance(payload.get("normalization_metadata"), dict)
         ):
             return raw_record
 
@@ -238,7 +238,7 @@ class TenableService:
                 seen_ids.add(source_id)
 
                 source_payload = normalized.get("source_payload") or {}
-                metadata = source_payload.get("_brd_normalization") or {}
+                metadata = source_payload.get("normalization_metadata") or {}
                 is_info = (metadata.get("actionable") is False)
 
                 if is_info:

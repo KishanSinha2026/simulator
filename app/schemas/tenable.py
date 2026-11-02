@@ -11,10 +11,10 @@ from pydantic import (
     create_model,
     field_validator,
 )
-from app.providers.tenable_normalizer import TENABLE_BRD_54_FIELDS
+from app.providers.tenable_normalizer import TENABLE_FINDING_SOURCE_FIELDS
 
 
-TENABLE_BRD_SCAN_RESULT_FIELDS: tuple[str, ...] = (
+TENABLE_SCAN_RESULT_FIELDS: tuple[str, ...] = (
     "id",
     "name",
     "description",
@@ -28,7 +28,7 @@ TENABLE_BRD_SCAN_RESULT_FIELDS: tuple[str, ...] = (
 )
 
 
-def _brd_fields_schema(model_name: str, labels: tuple[str, ...]) -> type[BaseModel]:
+def _source_fields_schema(model_name: str, labels: tuple[str, ...]) -> type[BaseModel]:
     """Build a Swagger-visible object schema with the exact BRD field labels."""
     definitions = {
         f"field_{index:02d}": (
@@ -39,18 +39,18 @@ def _brd_fields_schema(model_name: str, labels: tuple[str, ...]) -> type[BaseMod
     }
     return create_model(
         model_name,
-        __config__=ConfigDict(extra="allow"),
+        __config__=ConfigDict(extra="ignore"),
         **definitions,
     )
 
 
-TenableBRD54Fields = _brd_fields_schema(
-    "TenableBRD54Fields",
-    TENABLE_BRD_54_FIELDS,
+TenableFindingSourceFields = _source_fields_schema(
+    "TenableFindingSourceFields",
+    TENABLE_FINDING_SOURCE_FIELDS,
 )
-TenableBRDScanResultFields = _brd_fields_schema(
-    "TenableBRDScanResultFields",
-    TENABLE_BRD_SCAN_RESULT_FIELDS,
+TenableScanResultFields = _source_fields_schema(
+    "TenableScanResultFields",
+    TENABLE_SCAN_RESULT_FIELDS,
 )
 
 
@@ -163,25 +163,25 @@ class TenableFindingResponse(TenableFindingBase):
 
     @computed_field
     @property
-    def brd_54_fields(self) -> TenableBRD54Fields:
+    def finding_source_fields(self) -> TenableFindingSourceFields:
         """Return the 54 exact BRD field labels and received values."""
         payload = self.source_payload or {}
-        snapshot = payload.get("_brd_54_fields")
+        snapshot = payload.get("finding_source_fields")
 
         if isinstance(snapshot, dict):
-            return TenableBRD54Fields.model_validate(snapshot)
+            return TenableFindingSourceFields.model_validate(snapshot)
 
         raw_record = payload.get("raw_record")
         if isinstance(raw_record, dict):
-            return TenableBRD54Fields.model_validate(raw_record)
-        return TenableBRD54Fields()
+            return TenableFindingSourceFields.model_validate(raw_record)
+        return TenableFindingSourceFields()
 
     @computed_field
     @property
     def normalized_cvss_base_score(self) -> float | None:
         """Prefer CVSS V3 base score, falling back to V4."""
         payload = self.source_payload or {}
-        metadata = payload.get("_brd_normalization")
+        metadata = payload.get("normalization_metadata")
 
         if isinstance(metadata, dict):
             score = metadata.get("normalized_cvss_base_score")
@@ -202,7 +202,7 @@ class TenableFindingResponse(TenableFindingBase):
     def actionable(self) -> bool:
         """Informational records remain stored but are not actionable."""
         payload = self.source_payload or {}
-        metadata = payload.get("_brd_normalization")
+        metadata = payload.get("normalization_metadata")
 
         if isinstance(metadata, dict):
             value = metadata.get("actionable")
@@ -254,10 +254,10 @@ class TenableScanResponse(TenableScanBase):
 
     @computed_field
     @property
-    def brd_scan_fields(self) -> TenableBRDScanResultFields:
+    def scan_result_fields(self) -> TenableScanResultFields:
         """Return only the scan metadata named on the BRD scanResult route."""
         payload = self.source_payload or {}
-        return TenableBRDScanResultFields.model_validate(payload)
+        return TenableScanResultFields.model_validate(payload)
 
 
 class TenableScanListResponse(BaseModel):

@@ -21,6 +21,8 @@ from app.schemas.tenable import (
     TenableImportResponse,
     TenableScanListResponse,
 )
+from app.schemas.connection import ConnectorConnectionResponse
+from app.services.connection_service import check_connector_connection
 from app.services.tenable_service import TenableService
 
 
@@ -37,12 +39,18 @@ def get_tenable_service(
     return TenableService(db, get_provider("tenable"))
 
 
+@router.get("/connection", response_model=ConnectorConnectionResponse)
+def test_connection() -> dict[str, Any]:
+    """Check Tenable API reachability/authentication or fixture availability."""
+    return check_connector_connection("tenable")
+
+
 @router.get(
     "/findings",
     response_model=TenableFindingListResponse,
     summary="List vulnerability findings",
     description=(
-        "Returns normalized findings and `brd_54_fields`, which lists the "
+        "Returns normalized findings and `finding_source_fields`, which lists the "
         "54 exact Appendix A Tenable analysis fields. These fields belong "
         "to the finding-details (`/rest/analysis`) source."
     ),
@@ -129,7 +137,7 @@ def get_finding(
     response_model=TenableScanListResponse,
     summary="List scanner executions",
     description=(
-        "Returns scan execution metadata. `brd_scan_fields` lists the "
+        "Returns scan execution metadata. `scan_result_fields` lists the "
         "scanResult fields supplied by the BRD; this scan metadata set is "
         "separate from the 54 finding-detail fields."
     ),

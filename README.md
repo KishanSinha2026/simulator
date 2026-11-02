@@ -4,7 +4,9 @@ Enterprise vulnerability management and remediation integration simulator for **
 
 The simulator provides unified integration endpoints for **Tenable**, **BMC Helix CMDB**, **BMC Helix ITSM**, **Red Hat Satellite**, **Squad1**, **Microsoft SCCM 2509**, and **Ansible Automation Platform (AAP/AWX)**. Integrations can use configured vendor APIs or local PostgreSQL / JSON fixtures; a public workflow route may still be simulated when execution controls or client API contracts are pending.
 
-Ansible Automation Platform / AWX is available as an API-backed patch execution integration with a JSON fixture fallback. Configure `ANSIBLE_PROVIDER=api`, `ANSIBLE_BASE_URL`, and `ANSIBLE_API_KEY` in the environment (never commit the key). The API prefix defaults to `/api/controller/v2` for current AAP; set `ANSIBLE_API_PREFIX=/api/v2` for AWX/older controller deployments. If the API is unreachable or not configured, template listing uses `fixtures/ansible/job_templates.json` and launches are marked `simulated`; no host commands are run in fallback mode. Authentication and permission failures do not trigger fallback. `GET /api/v1/ansible/connection` reports whether the controller is connected and whether fixture mode is active. Job history is stored in PostgreSQL `ansible_job_runs`; apply the Alembic migration before use.
+Each connector exposes `GET /api/v1/{connector}/connection` for Tenable, Squad1, CMDB, ITSM, Satellite, SCCM, and Ansible. In API mode the endpoint runs a read-only provider probe. In JSON mode it reports `status: fixture`, `connected: false` after checking fixture availability; it never reports fixture mode as a live vendor connection. The response contains no credentials or source records.
+
+Ansible Automation Platform / AWX is available as an API-backed patch execution integration with a JSON fixture fallback. Configure `ANSIBLE_PROVIDER=api`, `ANSIBLE_BASE_URL`, and `ANSIBLE_API_KEY` in the environment (never commit the key). The API prefix defaults to `/api/controller/v2` for current AAP; set `ANSIBLE_API_PREFIX=/api/v2` for AWX/older controller deployments. If the API is unreachable or not configured, template listing uses `fixtures/ansible/job_templates.json` and launches are marked `simulated`; no host commands are run in fallback mode. Authentication and permission failures do not trigger fallback. Job templates and job history are stored in PostgreSQL (`ansible_job_templates` and `ansible_job_runs`); apply the Alembic migration before use.
 
 ---
 
@@ -58,13 +60,13 @@ The checked BRD-derived source is [`data/extracted_doc_summary.txt`](data/extrac
 
 | Connector | BRD data retained in PostgreSQL | Verification status / limitation |
 |---|---|---|
-| Tenable | Original finding and scan JSON; the 54 BRD finding fields are retained under `source_payload._brd_54_fields`. | Field preservation is implemented. The BRD leaves parts of the source API contract pending client confirmation. |
+| Tenable | Original finding and scan JSON; the finding-field snapshot is under `source_payload.finding_source_fields`, with missing-field and normalization metadata alongside it. | API responses expose `finding_source_fields` and `scan_result_fields`; Alembic revisions `b8c2d4e6f0a1` and `c2d3e4f5a6b7` rename existing JSON keys without dropping their values. |
 | Squad1 | Full original source object, including all 82 exact BRD keys, in `squad1_vulnerabilities.source_payload`; commonly used fields are also normalized. | Import maps the BRD key names such as `VulnerabilityNo`, `Target`, and `Vulnerability_Name`. |
 | BMC CMDB | Original server, middleware, database, and relationship objects in JSON payload columns; mapped inventory fields are also stored in columns. | BRD Appendix C fields are mapped where known. Middleware/database class names and writeback details require client configuration. |
 | BMC Helix ITSM | Original Helix entry JSON on import; local change creation stores the BRD's 19 exact create fields under `source_payload.values`. | Field mapping is represented. Approval, maintenance-window, worklog, update, and closure vendor contracts remain pending where the BRD says client confirmation is needed. |
-| Red Hat Satellite | Original host and template JSON; per-host results have their own persisted result rows and payloads. | Host IP/OS aliases are mapped. Public job launch is simulated and does not execute a live Satellite patch job. |
+| Red Hat Satellite | Hosts, job templates, job runs, and per-host results are stored in PostgreSQL (`satellite_hosts`, `satellite_job_templates`, `satellite_job_runs`, and `satellite_job_host_results`); source JSON is retained in JSONB payload columns. Fixtures or the live API are import sources, not the system of record. | Host IP/OS aliases are mapped. Public job launch is simulated and does not execute a live Satellite patch job. |
 | SCCM 2509 | Original device, collection, and deployment JSON; per-target deployment results are persisted. | Native SCCM key aliases are mapped. Job launch records a simulated run; it does not submit a live SCCM deployment. |
-| Ansible AAP/AWX | Controller launch/status JSON is stored in `ansible_job_runs.source_payload`; offline fixture templates are in `fixtures/ansible/job_templates.json`. | Current API uses job-template launch. It does not yet implement the BRD 4.7 inventory, ad-hoc command, per-host events, and stdout contract. Fixture launches are explicitly simulated. |
+| Ansible AAP/AWX | Imported templates are stored in `ansible_job_templates.source_payload`; controller launch/status JSON is stored in `ansible_job_runs.source_payload`. Fixtures are an import source, not the system of record. | Current API uses job-template launch. It does not yet implement the BRD 4.7 inventory, ad-hoc command, per-host events, and stdout contract. Fixture launches are explicitly simulated. |
 
 `source_payload` is a JSON object containing connector data, not a file path or a reference to the BRD. It may preserve source fields that do not have dedicated database columns; it does not by itself mean every BRD workflow is implemented or every field is individually queryable.
 
@@ -451,11 +453,13 @@ The table below lists the main public operations. The generated OpenAPI document
 | Integration | Method | Endpoint Path | Function / BRD Reference |
 |---|---|---|---|
 | **Tenable** | `GET` | `/api/v1/tenable/findings` | List vulnerability findings (supports `limit=50000`) |
+| | `GET` | `/api/v1/tenable/connection` | Test configured Tenable API or report fixture mode |
 | | `POST` | `/api/v1/tenable/findings` | Create or update a vulnerability finding |
 | | `GET` | `/api/v1/tenable/findings/{id}` | Retrieve finding by database ID |
 | | `GET` | `/api/v1/tenable/scans` | List scanner execution metadata |
 | | `POST` | `/api/v1/tenable/import` | Synchronize findings into PostgreSQL in 500-chunk batches |
 | **CMDB** | `GET` | `/api/v1/cmdb/servers` | List server CIs (supports `limit=50000`) |
+| | `GET` | `/api/v1/cmdb/connection` | Test CMDB authentication/read access or report fixture mode |
 | | `POST` | `/api/v1/cmdb/servers` | Create a new server CI record |
 | | `GET` | `/api/v1/cmdb/servers/{id}` | Retrieve server CI by ID |
 | | `PATCH` | `/api/v1/cmdb/servers/{id}` | Update server CI attributes (BRD 4.8 Patch Writeback) |
@@ -466,6 +470,7 @@ The table below lists the main public operations. The generated OpenAPI document
 | | `GET` | `/api/v1/cmdb/relationships` | List CI-to-CI dependency relationships |
 | | `POST` | `/api/v1/cmdb/import` | Synchronize servers, middleware, and databases |
 | **ITSM** | `GET` | `/api/v1/itsm/changes` | List change requests (supports `limit=50000`) |
+| | `GET` | `/api/v1/itsm/connection` | Test Helix authentication/read access or report fixture mode |
 | | `POST` | `/api/v1/itsm/changes` | Create change request with 19 BRD QA fields |
 | | `GET` | `/api/v1/itsm/changes/{id}` | Retrieve change request by ID |
 | | `PATCH` | `/api/v1/itsm/changes/{id}` | Update change request attributes or status |
@@ -473,6 +478,7 @@ The table below lists the main public operations. The generated OpenAPI document
 | | `POST` | `/api/v1/itsm/changes/{id}/worklogs` | Add worklog entry to a change request |
 | | `POST` | `/api/v1/itsm/import` | Synchronize change requests and worklogs |
 | **Satellite**| `GET` | `/api/v1/satellite/hosts` | List Satellite managed hosts (supports `limit=50000`, BRD S1) |
+| | `GET` | `/api/v1/satellite/connection` | Test Satellite API access or report fixture mode |
 | | `POST` | `/api/v1/satellite/hosts` | Create or update managed host |
 | | `GET` | `/api/v1/satellite/job-templates` | List approved Ansible job templates (BRD S2) |
 | | `POST` | `/api/v1/satellite/jobs` | Record a simulated job request; the public route does not launch a remote patch job (BRD S3) |
@@ -482,17 +488,20 @@ The table below lists the main public operations. The generated OpenAPI document
 | | `POST` | `/api/v1/satellite/jobs/{id}/cancel` | Cancel a pending VPM360 simulated job (BRD S7); remote cancellation is not wired to this route |
 | | `POST` | `/api/v1/satellite/import` | Synchronize hosts and job templates |
 | **Squad1** | `GET` | `/api/v1/squad1/vulnerabilities` | List vulnerabilities (supports `limit=50000`, BRD 4.2) |
+| | `GET` | `/api/v1/squad1/connection` | Test Squad1 API access or report fixture mode |
 | | `POST` | `/api/v1/squad1/vulnerabilities` | Ingest or update a vulnerability finding |
 | | `GET` | `/api/v1/squad1/exceptions` | List active vulnerability exceptions (`Exception_ID`) |
 | | `POST` | `/api/v1/squad1/import` | Synchronize Squad1 findings and exceptions |
 | **SCCM** | `GET` | `/api/v1/sccm/devices` | List managed Windows devices (supports `limit=50000`, BRD 4.6) |
+| | `GET` | `/api/v1/sccm/connection` | Test SCCM AdminService access or report fixture mode |
 | | `GET` | `/api/v1/sccm/collections` | List SCCM device collections |
 | | `GET` | `/api/v1/sccm/deployments` | List SCCM software update deployments |
 | | `POST` | `/api/v1/sccm/jobs` | Record a simulated guarded deployment run; no remote SCCM deployment is submitted |
 | | `GET` | `/api/v1/sccm/jobs/{id}` | Retrieve deployment run breakdown |
-| | `POST` | `/api/v1/sccm/import` | Synchronize SCCM inventory and deployment states |
-| **Ansible AAP** | `GET` | `/api/v1/ansible/connection` | Check configured controller authentication without launching a job |
+| | `POST` | `/api/v1/sccm/import?limit=50000&offset=0` | Synchronize one page per SCCM resource type into PostgreSQL; response includes `limit` and `offset` |
+| **Ansible AAP** | `GET` | `/api/v1/ansible/connection` | Test controller API access or report fixture mode without launching a job |
 | | `GET` | `/api/v1/ansible/job-templates` | List controller job templates |
+| | `POST` | `/api/v1/ansible/import?limit=50000&offset=0` | Import one page of job templates and their source JSON into PostgreSQL |
 | | `POST` | `/api/v1/ansible/jobs` | Launch an Ansible job with an explicit target `limit` and `extra_vars` |
 | | `GET` | `/api/v1/ansible/jobs/{id}` | Refresh and persist controller job status |
 | | `POST` | `/api/v1/ansible/jobs/{id}/cancel` | Request controller job cancellation |

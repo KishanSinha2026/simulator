@@ -371,6 +371,24 @@ class TenableAPIProvider:
         scans = self._fetch_all_scans()
         return scans[offset : offset + limit]
 
+    def test_connection(self) -> dict[str, Any]:
+        """Check auth and reachability with a read-only scanResult request."""
+        settings = self.settings
+        params: dict[str, Any] = {
+            "fields": settings.tenable_scan_result_fields,
+        }
+
+        if settings.tenable_scan_result_paging_mode == "offset_limit":
+            params[settings.tenable_scan_result_offset_param] = 0
+            params[settings.tenable_scan_result_limit_param] = 1
+
+        self._request_json(
+            settings.tenable_scan_result_method,
+            settings.tenable_scan_result_path,
+            params=params,
+        )
+        return {"connected": True, "probe": "scanResult"}
+
 
     def _fetch_analysis(
         self,
@@ -461,7 +479,7 @@ class TenableAPIProvider:
 
                 if filters.get("actionable_only"):
                     payload = finding.get("source_payload") or {}
-                    metadata = payload.get("_brd_normalization") or {}
+                    metadata = payload.get("normalization_metadata") or {}
 
                     if metadata.get("actionable") is False:
                         continue

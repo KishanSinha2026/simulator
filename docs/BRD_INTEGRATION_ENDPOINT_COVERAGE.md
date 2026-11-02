@@ -5,6 +5,18 @@ records, and external routes used by providers with the BRD in
 `data/extracted_doc_summary.txt`. Paths on a provider are called by VPM360;
 they are not public VPM360 routes.
 
+## Connector connection checks — BRD 3.1
+
+Each connector exposes `GET /api/v1/{connector}/connection` for Tenable,
+Squad1, CMDB, ITSM, Satellite, SCCM, and Ansible. API mode performs a
+read-only probe using that provider's configured endpoint and credentials.
+JSON mode verifies that local fixture data is readable and returns
+`status: fixture`, `connected: false`; it does not claim that the vendor is
+reachable. The response never includes credentials or source records. The
+BRD asks for connection health, last test, and a Test Connection control, but
+does not prescribe these endpoint paths. `/api/v1/health` and
+`/api/v1/ready` remain VPM360 application/database health checks.
+
 ## Tenable — BRD 4.1
 
 The public API exposes `GET /api/v1/tenable/findings`,
@@ -119,3 +131,9 @@ also retained in their respective JSON/JSONB `source_payload` columns. This
 preserves source JSON but does not mean every BRD field has a dedicated column
 or that every execution/reporting workflow is implemented. Client contracts
 marked pending remain unverified.
+
+Tenable JSON metadata uses descriptive keys: `finding_source_fields`,
+`missing_finding_source_fields`, and `normalization_metadata`. Alembic
+revisions `b8c2d4e6f0a1` and `c2d3e4f5a6b7` rename the earlier internal JSON
+keys in existing database rows while preserving their JSON values. API
+responses expose `finding_source_fields` and `scan_result_fields`.

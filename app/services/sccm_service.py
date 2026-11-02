@@ -336,8 +336,9 @@ class SCCMService:
     # Batch Synchronization / Import
     # ------------------------------------------------------------------
 
-    def import_provider_data(self) -> dict[str, Any]:
-        """Synchronize devices, collections, and deployments into PostgreSQL."""
+    def import_provider_data(self, *, limit: int = 50000, offset: int = 0) -> dict[str, Any]:
+        """Synchronize a page of devices, collections, and deployments into PostgreSQL."""
+        self._validate_pagination(limit, offset)
         devices_imported = 0
         collections_imported = 0
         deployments_imported = 0
@@ -346,7 +347,7 @@ class SCCMService:
         # 1. Devices
         if hasattr(self.provider, "list_devices"):
             try:
-                raw_devices = self.provider.list_devices(limit=50000)
+                raw_devices = self.provider.list_devices(limit=limit, offset=offset)
                 for item in raw_devices:
                     res_id = str(
                         item.get("resource_id")
@@ -393,7 +394,7 @@ class SCCMService:
         # 2. Collections
         if hasattr(self.provider, "list_collections"):
             try:
-                raw_cols = self.provider.list_collections(limit=50000)
+                raw_cols = self.provider.list_collections(limit=limit, offset=offset)
                 for item in raw_cols:
                     col_id = str(
                         item.get("collection_id")
@@ -424,7 +425,7 @@ class SCCMService:
         # 3. Deployments
         if hasattr(self.provider, "list_deployments"):
             try:
-                raw_deps = self.provider.list_deployments(limit=50000)
+                raw_deps = self.provider.list_deployments(limit=limit, offset=offset)
                 for item in raw_deps:
                     assign_id = str(
                         item.get("assignment_id")
@@ -471,4 +472,6 @@ class SCCMService:
             "collections_imported": collections_imported,
             "deployments_imported": deployments_imported,
             "errors": errors,
+            "limit": limit,
+            "offset": offset,
         }

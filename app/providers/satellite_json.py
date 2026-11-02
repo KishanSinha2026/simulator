@@ -10,13 +10,13 @@ class SatelliteJsonProvider:
     """Read and manage simulated Satellite records in JSON files."""
 
     def __init__(self) -> None:
-        self.hosts = JsonProvider("satellite/hosts.json")
+        self.hosts = JsonProvider("satellite/multihosts.json")
         self.job_templates = JsonProvider(
-            "satellite/job_templates.json"
+            "satellite/multijob_templates.json"
         )
-        self.job_runs = JsonProvider("satellite/job_runs.json")
+        self.job_runs = JsonProvider("satellite/multijob_runs.json")
         self.host_results = JsonProvider(
-            "satellite/job_host_results.json"
+            "satellite/multijob_host_results.json"
         )
 
     def get_host(
@@ -241,4 +241,4 @@ class SatelliteJsonProvider:
             raise ValueError("source_template_id is required")
         record["source_template_id"] = str(source_id).strip()
         record.setdefault("id", record["source_template_id"])
-        return self.job_templates.create_record(record)
+        return self.job_templates.create_record(record)

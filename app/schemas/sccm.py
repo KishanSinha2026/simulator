@@ -228,3 +228,5 @@ class SCCMImportResponse(BaseModel):
     collections_imported: int = Field(ge=0)
     deployments_imported: int = Field(ge=0)
     errors: int = Field(ge=0)
+    limit: int = Field(ge=1, le=50000)
+    offset: int = Field(ge=0)

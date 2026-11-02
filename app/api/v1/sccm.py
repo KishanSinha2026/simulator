@@ -28,6 +28,8 @@ from app.schemas.sccm import (
     SCCMImportResponse,
     SCCMJobLaunchRequest,
 )
+from app.schemas.connection import ConnectorConnectionResponse
+from app.services.connection_service import check_connector_connection
 from app.services.sccm_service import SCCMService
 
 
@@ -42,6 +44,12 @@ def get_sccm_service(
 ) -> SCCMService:
     """Create SCCM service for current request."""
     return SCCMService(db, get_provider("sccm"))
+
+
+@router.get("/connection", response_model=ConnectorConnectionResponse)
+def test_connection() -> dict[str, Any]:
+    """Check SCCM AdminService reachability or fixture availability."""
+    return check_connector_connection("sccm")
 
 
 @router.get(
@@ -194,7 +202,9 @@ def get_job(
     summary="Import and synchronize SCCM devices and collections into PostgreSQL",
 )
 def import_sccm_data(
+    limit: int = Query(default=50000, ge=1, le=50000, description="Maximum source records to import per SCCM resource type"),
+    offset: int = Query(default=0, ge=0, description="Number of source records to skip per SCCM resource type"),
     service: SCCMService = Depends(get_sccm_service),
 ) -> dict[str, Any]:
-    """Synchronize devices, collections, and deployments into PostgreSQL from active source."""
-    return service.import_provider_data()
+    """Synchronize a page of devices, collections, and deployments into PostgreSQL."""
+    return service.import_provider_data(limit=limit, offset=offset)

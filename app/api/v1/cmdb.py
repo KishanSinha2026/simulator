@@ -31,6 +31,8 @@ from app.schemas.cmdb import (
     CMDBServerResponse,
     CMDBServerUpdate,
 )
+from app.schemas.connection import ConnectorConnectionResponse
+from app.services.connection_service import check_connector_connection
 from app.services.cmdb_service import CMDBService
 
 
@@ -45,6 +47,12 @@ def get_cmdb_service(
 ) -> CMDBService:
     """Create the CMDB service for the current request."""
     return CMDBService(db, get_provider("cmdb"))
+
+
+@router.get("/connection", response_model=ConnectorConnectionResponse)
+def test_connection() -> dict[str, Any]:
+    """Check CMDB authentication and read access or fixture availability."""
+    return check_connector_connection("cmdb")
 
 
 @router.get(

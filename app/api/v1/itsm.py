@@ -27,6 +27,8 @@ from app.schemas.itsm import (
     ITSMWorklogListResponse,
     ITSMWorklogResponse,
 )
+from app.schemas.connection import ConnectorConnectionResponse
+from app.services.connection_service import check_connector_connection
 from app.services.itsm_service import ITSMService
 
 
@@ -40,6 +42,12 @@ def get_itsm_service(
 ) -> ITSMService:
     """Create the ITSM service for the current request."""
     return ITSMService(db, get_provider("itsm"))
+
+
+@router.get("/connection", response_model=ConnectorConnectionResponse)
+def test_connection() -> dict[str, Any]:
+    """Check Helix ITSM authentication/read access or fixture availability."""
+    return check_connector_connection("itsm")
 
 
 @router.get(

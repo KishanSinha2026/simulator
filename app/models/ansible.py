@@ -28,3 +28,20 @@ class AnsibleJobRun(Base):
 
 
 Index("ix_ansible_job_runs_status_created", AnsibleJobRun.status, AnsibleJobRun.created_at)
+
+
+class AnsibleJobTemplate(Base):
+    """Controller job template metadata and original API/fixture JSON."""
+
+    __tablename__ = "ansible_job_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_template_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+Index("ix_ansible_job_templates_name", AnsibleJobTemplate.name)

@@ -22,6 +22,8 @@ from app.schemas.squad1 import (
     Squad1VulnerabilityListResponse,
     Squad1VulnerabilityResponse,
 )
+from app.schemas.connection import ConnectorConnectionResponse
+from app.services.connection_service import check_connector_connection
 from app.services.squad1_service import Squad1Service
 
 
@@ -36,6 +38,12 @@ def get_squad1_service(
 ) -> Squad1Service:
     """Create Squad1 service for the current request."""
     return Squad1Service(db, get_provider("squad1"))
+
+
+@router.get("/connection", response_model=ConnectorConnectionResponse)
+def test_connection() -> dict[str, Any]:
+    """Check Squad1 API reachability/authentication or fixture availability."""
+    return check_connector_connection("squad1")
 
 
 @router.get(
