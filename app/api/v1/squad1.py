@@ -41,9 +41,9 @@ def get_squad1_service(
 
 
 @router.get("/connection", response_model=ConnectorConnectionResponse)
-def test_connection() -> dict[str, Any]:
+def test_connection(db: Session = Depends(get_db)) -> dict[str, Any]:
     """Check Squad1 API reachability/authentication or fixture availability."""
-    return check_connector_connection("squad1")
+    return check_connector_connection("squad1", db)
 
 
 @router.get(

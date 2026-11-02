@@ -45,9 +45,9 @@ def get_itsm_service(
 
 
 @router.get("/connection", response_model=ConnectorConnectionResponse)
-def test_connection() -> dict[str, Any]:
+def test_connection(db: Session = Depends(get_db)) -> dict[str, Any]:
     """Check Helix ITSM authentication/read access or fixture availability."""
-    return check_connector_connection("itsm")
+    return check_connector_connection("itsm", db)
 
 
 @router.get(

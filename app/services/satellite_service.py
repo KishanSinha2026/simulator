@@ -1,5 +1,6 @@
 """Business logic for Red Hat Satellite resources and job simulation."""
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -36,6 +37,17 @@ class SatelliteService:
         self.job_repository = SatelliteJobRunRepository(db)
         self.result_repository = SatelliteJobHostResultRepository(db)
         self.provider = provider
+
+    @staticmethod
+    def _parse_source_datetime(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        return None
 
     # ------------------------------------------------------------------
     # Host Operations (Database)
@@ -558,7 +570,7 @@ class SatelliteService:
                             ),
                             "organization_id": item.get("organization_id"),
                             "location_id": item.get("location_id"),
-                            "source_payload": item.get("source_payload") or item,
+                            "source_payload": item,
                         }
                         if existing is None:
                             self.db.add(SatelliteHost(**data))
@@ -608,7 +620,7 @@ class SatelliteService:
                                 if isinstance(item.get("input_schema") or item.get("inputs"), dict)
                                 else None
                             ),
-                            "source_payload": item.get("source_payload") or item,
+                            "source_payload": item,
                         }
                         if existing is None:
                             self.db.add(SatelliteJobTemplate(**data))
@@ -621,8 +633,98 @@ class SatelliteService:
                 self.db.rollback()
                 errors += 1
 
+        # Fixture/demo executions are also mirrored to PostgreSQL. The API
+        # provider does not expose host-result listing, so no unsupported live
+        # history endpoint is inferred here.
+        job_runs_imported = 0
+        host_results_imported = 0
+        if hasattr(self.provider, "list_host_results") and hasattr(self.provider, "list_job_runs"):
+            try:
+                templates = {
+                    row.source_template_id: row.id
+                    for row in self.db.query(SatelliteJobTemplate).all()
+                }
+                hosts = {
+                    row.source_host_id: row.id
+                    for row in self.db.query(SatelliteHost).all()
+                }
+                existing_runs = {
+                    row.source_invocation_id: row
+                    for row in self.db.query(SatelliteJobRun).all()
+                    if row.source_invocation_id
+                }
+                raw_runs = self.provider.list_job_runs(limit=50000, offset=0)
+                for item in raw_runs:
+                    invocation_id = str(item.get("id") or item.get("source_invocation_id") or "").strip()
+                    template_source_id = str(item.get("job_template_id") or item.get("template_id") or "").strip()
+                    template_id = templates.get(template_source_id)
+                    if not invocation_id or template_id is None:
+                        continue
+                    data = {
+                        "source_invocation_id": invocation_id,
+                        "template_id": template_id,
+                        "status": str(item.get("status") or "unknown"),
+                        "inputs": item.get("inputs") if isinstance(item.get("inputs"), dict) else {},
+                        "started_at": self._parse_source_datetime(item.get("started_at") or item.get("started")),
+                        "completed_at": self._parse_source_datetime(item.get("finished_at") or item.get("completed_at") or item.get("finished")),
+                        "source_payload": item,
+                    }
+                    row = existing_runs.get(invocation_id)
+                    if row is None:
+                        row = SatelliteJobRun(**data)
+                        self.db.add(row)
+                        existing_runs[invocation_id] = row
+                    else:
+                        for key, value in data.items():
+                            setattr(row, key, value)
+                    job_runs_imported += 1
+                self.db.flush()
+                run_ids = {
+                    row.source_invocation_id: row.id
+                    for row in existing_runs.values()
+                    if row.source_invocation_id
+                }
+                existing_results = {
+                    (row.job_run_id, row.host_id): row
+                    for row in self.db.query(SatelliteJobHostResult).all()
+                }
+                for item in self.provider.list_host_results(limit=50000, offset=0):
+                    source_run_id = str(item.get("job_run_id") or "").strip()
+                    source_host_id = str(item.get("host_id") or "").strip()
+                    run_id = run_ids.get(source_run_id)
+                    host_id = hosts.get(source_host_id)
+                    if run_id is None or host_id is None:
+                        continue
+                    output = "\n".join(
+                        str(value) for value in (item.get("stdout"), item.get("stderr")) if value
+                    ) or None
+                    data = {
+                        "job_run_id": run_id,
+                        "host_id": host_id,
+                        "status": str(item.get("status") or "unknown"),
+                        "result_text": output,
+                        "source_payload": item,
+                        "started_at": self._parse_source_datetime(item.get("started_at") or item.get("started")),
+                        "completed_at": self._parse_source_datetime(item.get("finished_at") or item.get("finished")),
+                    }
+                    row = existing_results.get((run_id, host_id))
+                    if row is None:
+                        row = SatelliteJobHostResult(**data)
+                        self.db.add(row)
+                        existing_results[(run_id, host_id)] = row
+                    else:
+                        for key, value in data.items():
+                            setattr(row, key, value)
+                    host_results_imported += 1
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                errors += 1
+
         return {
             "hosts_imported": hosts_imported,
             "job_templates_imported": templates_imported,
+            "job_runs_imported": job_runs_imported,
+            "host_results_imported": host_results_imported,
             "errors": errors,
         }

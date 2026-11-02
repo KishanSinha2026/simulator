@@ -64,8 +64,8 @@ The checked BRD-derived source is [`data/extracted_doc_summary.txt`](data/extrac
 | Squad1 | Full original source object, including all 82 exact BRD keys, in `squad1_vulnerabilities.source_payload`; commonly used fields are also normalized. | Import maps the BRD key names such as `VulnerabilityNo`, `Target`, and `Vulnerability_Name`. |
 | BMC CMDB | Original server, middleware, database, and relationship objects in JSON payload columns; mapped inventory fields are also stored in columns. | BRD Appendix C fields are mapped where known. Middleware/database class names and writeback details require client configuration. |
 | BMC Helix ITSM | Original Helix entry JSON on import; local change creation stores the BRD's 19 exact create fields under `source_payload.values`. | Field mapping is represented. Approval, maintenance-window, worklog, update, and closure vendor contracts remain pending where the BRD says client confirmation is needed. |
-| Red Hat Satellite | Hosts, job templates, job runs, and per-host results are stored in PostgreSQL (`satellite_hosts`, `satellite_job_templates`, `satellite_job_runs`, and `satellite_job_host_results`); source JSON is retained in JSONB payload columns. Fixtures or the live API are import sources, not the system of record. | Host IP/OS aliases are mapped. Public job launch is simulated and does not execute a live Satellite patch job. |
-| SCCM 2509 | Original device, collection, and deployment JSON; per-target deployment results are persisted. | Native SCCM key aliases are mapped. Job launch records a simulated run; it does not submit a live SCCM deployment. |
+| Red Hat Satellite | Hosts, job templates, job runs, and per-host results are stored in PostgreSQL (`satellite_hosts`, `satellite_job_templates`, `satellite_job_runs`, and `satellite_job_host_results`); source JSON is retained in JSONB payload columns. Fixture imports include demo execution history marked simulated. Fixtures or the live API are import sources, not the system of record. | Host IP/OS aliases are mapped. Public job launch is simulated and does not execute a live Satellite patch job. |
+| SCCM 2509 | Devices, collections, deployments, deployment runs, and per-target results are stored in PostgreSQL; the complete fixture record is retained in JSONB payload columns. Fixture execution history is simulated. | Native SCCM key aliases are mapped. Job launch records a simulated run; it does not submit a live SCCM deployment. |
 | Ansible AAP/AWX | Imported templates are stored in `ansible_job_templates.source_payload`; controller launch/status JSON is stored in `ansible_job_runs.source_payload`. Fixtures are an import source, not the system of record. | Current API uses job-template launch. It does not yet implement the BRD 4.7 inventory, ad-hoc command, per-host events, and stdout contract. Fixture launches are explicitly simulated. |
 
 `source_payload` is a JSON object containing connector data, not a file path or a reference to the BRD. It may preserve source fields that do not have dedicated database columns; it does not by itself mean every BRD workflow is implemented or every field is individually queryable.
@@ -486,7 +486,7 @@ The table below lists the main public operations. The generated OpenAPI document
 | | `GET` | `/api/v1/satellite/jobs/{id}/hosts/{h_id}` | Read a stored per-host job result (BRD S5) |
 | | `GET` | `/api/v1/satellite/jobs/{id}/hosts/{h_id}/raw` | Read stored raw output or request the provider's S6 raw output in API mode |
 | | `POST` | `/api/v1/satellite/jobs/{id}/cancel` | Cancel a pending VPM360 simulated job (BRD S7); remote cancellation is not wired to this route |
-| | `POST` | `/api/v1/satellite/import` | Synchronize hosts and job templates |
+| | `POST` | `/api/v1/satellite/import` | Synchronize hosts, templates, and fixture-backed simulated job/result history |
 | **Squad1** | `GET` | `/api/v1/squad1/vulnerabilities` | List vulnerabilities (supports `limit=50000`, BRD 4.2) |
 | | `GET` | `/api/v1/squad1/connection` | Test Squad1 API access or report fixture mode |
 | | `POST` | `/api/v1/squad1/vulnerabilities` | Ingest or update a vulnerability finding |
@@ -498,7 +498,7 @@ The table below lists the main public operations. The generated OpenAPI document
 | | `GET` | `/api/v1/sccm/deployments` | List SCCM software update deployments |
 | | `POST` | `/api/v1/sccm/jobs` | Record a simulated guarded deployment run; no remote SCCM deployment is submitted |
 | | `GET` | `/api/v1/sccm/jobs/{id}` | Retrieve deployment run breakdown |
-| | `POST` | `/api/v1/sccm/import?limit=50000&offset=0` | Synchronize one page per SCCM resource type into PostgreSQL; response includes `limit` and `offset` |
+| | `POST` | `/api/v1/sccm/import?limit=50000&offset=0` | Synchronize one page of devices, collections, deployments, and fixture-backed simulated run/result history into PostgreSQL |
 | **Ansible AAP** | `GET` | `/api/v1/ansible/connection` | Test controller API access or report fixture mode without launching a job |
 | | `GET` | `/api/v1/ansible/job-templates` | List controller job templates |
 | | `POST` | `/api/v1/ansible/import?limit=50000&offset=0` | Import one page of job templates and their source JSON into PostgreSQL |

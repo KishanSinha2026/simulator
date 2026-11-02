@@ -18,3 +18,4 @@ class ConnectorConnectionResponse(BaseModel):
     provider_mode: Literal["api", "json"]
     checked_at: datetime
     message: str
+    history_id: int

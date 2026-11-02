@@ -49,9 +49,9 @@ def get_satellite_service(
 
 
 @router.get("/connection", response_model=ConnectorConnectionResponse)
-def test_connection() -> dict[str, Any]:
+def test_connection(db: Session = Depends(get_db)) -> dict[str, Any]:
     """Check Satellite API reachability/authentication or fixture availability."""
-    return check_connector_connection("satellite")
+    return check_connector_connection("satellite", db)
 
 
 @router.get(

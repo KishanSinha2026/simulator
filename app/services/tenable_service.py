@@ -138,17 +138,11 @@ class TenableService:
         raw_record: dict[str, Any],
     ) -> dict[str, Any]:
         """Normalize fixture records; avoid normalizing API output twice."""
-        if (
-            raw_record.get("source_finding_id")
-            and raw_record.get("plugin_id")
-            and "source_payload" in raw_record
-        ):
-            return raw_record
-
         payload = raw_record.get("source_payload")
 
         if (
             isinstance(payload, dict)
+            and isinstance(payload.get("raw_record"), dict)
             and isinstance(payload.get("finding_source_fields"), dict)
             and isinstance(payload.get("normalization_metadata"), dict)
         ):
@@ -221,6 +215,17 @@ class TenableService:
         # Deduplicate records by source_finding_id first
         clean_batch: list[tuple[str, dict[str, Any], list[str], bool]] = []
         seen_ids: set[str] = set()
+        referenced_scan_ids = {
+            str(record.get("scan_id")).strip()
+            for record in raw_records
+            if record.get("scan_id") not in (None, "")
+        }
+        scan_id_map = {
+            source_id: database_id
+            for source_id, database_id in self.db.query(
+                TenableScan.source_scan_id, TenableScan.id
+            ).filter(TenableScan.source_scan_id.in_(referenced_scan_ids)).all()
+        } if referenced_scan_ids else {}
 
         for raw_record in raw_records:
             try:
@@ -250,6 +255,8 @@ class TenableService:
                     for key, value in normalized.items()
                     if key in allowed_fields
                 }
+                source_scan_id = normalized.get("scan_id")
+                data["scan_id"] = scan_id_map.get(str(source_scan_id).strip()) if source_scan_id not in (None, "") else None
                 clean_batch.append((source_id, data, cve_ids, is_info))
             except Exception:
                 errors += 1
@@ -259,6 +266,8 @@ class TenableService:
         for i in range(0, len(clean_batch), chunk_size):
             chunk = clean_batch[i : i + chunk_size]
             chunk_source_ids = [item[0] for item in chunk]
+            created_before_chunk = created
+            updated_before_chunk = updated
 
             try:
                 existing_map = {
@@ -285,6 +294,8 @@ class TenableService:
 
             except Exception:
                 self.db.rollback()
+                created = created_before_chunk
+                updated = updated_before_chunk
                 # Process item by item in fallback to record partial successes
                 for source_id, data, cve_ids, _ in chunk:
                     try:
@@ -308,7 +319,7 @@ class TenableService:
         # Also import provider scans if available
         if hasattr(self.provider, "list_scans"):
             try:
-                scans_batch = self.provider.list_scans(limit=min(limit, 500))
+                scans_batch = self.provider.list_scans(limit=min(limit, 50000))
                 scan_ids = [
                     str(s.get("id") or s.get("source_scan_id") or "").strip()
                     for s in scans_batch

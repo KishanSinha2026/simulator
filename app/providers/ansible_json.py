@@ -10,7 +10,7 @@ class AnsibleJsonProvider:
     """Provide fixture templates without running commands on any host."""
 
     def __init__(self) -> None:
-        self.templates = JsonProvider("ansible/multi/job_templates.json")
+        self.templates = JsonProvider("ansible/multijob_templates.json")
 
     def list_templates(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
         if not 1 <= limit <= 50000 or offset < 0:

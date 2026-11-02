@@ -580,7 +580,7 @@ class CMDBService:
                                 item.get("last_patch_updated_at")
                             ),
                             "status": item.get("status"),
-                            "source_payload": item.get("source_payload") or item,
+                            "source_payload": item,
                         }
                         if existing is None:
                             self.db.add(CMDBServer(**data))
@@ -596,7 +596,7 @@ class CMDBService:
         # 2. Import middleware
         if hasattr(self.provider, "list_middleware"):
             try:
-                for item in self.provider.list_middleware(limit=5000):
+                for item in self.provider.list_middleware(limit=50000):
                     source_id = str(item.get("source_instance_id") or item.get("id") or "").strip()
                     if not source_id:
                         continue
@@ -623,7 +623,7 @@ class CMDBService:
                         "end_of_support_date": item.get("end_of_support_date"),
                         "target_date": item.get("target_date"),
                         "status": item.get("status"),
-                        "source_payload": item.get("source_payload") or item,
+                        "source_payload": item,
                     }
                     if existing is None:
                         self.db.add(CMDBMiddleware(**data))
@@ -639,7 +639,7 @@ class CMDBService:
         # 3. Import databases
         if hasattr(self.provider, "list_databases"):
             try:
-                for item in self.provider.list_databases(limit=5000):
+                for item in self.provider.list_databases(limit=50000):
                     source_id = str(item.get("source_instance_id") or item.get("id") or "").strip()
                     if not source_id:
                         continue
@@ -662,7 +662,7 @@ class CMDBService:
                         ),
                         "target_date": item.get("target_date"),
                         "status": item.get("status"),
-                        "source_payload": item.get("source_payload") or item,
+                        "source_payload": item,
                     }
                     if existing is None:
                         self.db.add(CMDBDatabase(**data))

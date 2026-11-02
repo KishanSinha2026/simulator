@@ -3,8 +3,11 @@
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from app.core.config import get_settings
 from app.providers.factory import get_provider
+from app.models.connection_check import IntegrationConnectionCheck
 
 
 _FIXTURE_PROBES = {
@@ -28,7 +31,7 @@ _API_PROBES = {
 }
 
 
-def check_connector_connection(integration: str) -> dict[str, Any]:
+def check_connector_connection(integration: str, db: Session) -> dict[str, Any]:
     """Probe a connector without creating, changing, or importing records.
 
     Fixture mode verifies that local fixture data is readable and explicitly
@@ -41,7 +44,7 @@ def check_connector_connection(integration: str) -> dict[str, Any]:
         provider = get_provider(integration)
         if mode == "json":
             _FIXTURE_PROBES[integration](provider)
-            return {
+            result = {
                 "integration": integration,
                 "status": "fixture",
                 "connected": False,
@@ -53,24 +56,43 @@ def check_connector_connection(integration: str) -> dict[str, Any]:
                     "was checked."
                 ),
             }
-
-        _API_PROBES[integration](provider)
-        return {
-            "integration": integration,
-            "status": "connected",
-            "connected": True,
-            "healthy": True,
-            "provider_mode": mode,
-            "checked_at": checked_at,
-            "message": "Read-only API connection check succeeded.",
-        }
+        else:
+            _API_PROBES[integration](provider)
+            result = {
+                "integration": integration,
+                "status": "connected",
+                "connected": True,
+                "healthy": True,
+                "provider_mode": mode,
+                "checked_at": checked_at,
+                "message": "Read-only API connection check succeeded.",
+            }
     except Exception as exc:
-        return {
+        result = {
             "integration": integration,
             "status": "error",
             "connected": False,
             "healthy": False,
             "provider_mode": mode,
             "checked_at": checked_at,
-            "message": str(exc),
+            "message": f"Connection check failed: {type(exc).__name__}",
         }
+
+    try:
+        row = IntegrationConnectionCheck(
+            integration=integration,
+            status=result["status"],
+            connected=result["connected"],
+            healthy=result["healthy"],
+            provider_mode=mode,
+            checked_at=checked_at,
+            message=result["message"],
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        result["history_id"] = row.id
+        return result
+    except Exception:
+        db.rollback()
+        raise

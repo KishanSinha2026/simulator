@@ -79,6 +79,20 @@ class SCCMJsonProvider:
             filters=filters,
         )
 
+    def list_deployment_runs(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """List simulated deployment history and per-device evidence."""
+        return self.deployment_runs.list_records(
+            limit=limit,
+            offset=offset,
+            filters=filters,
+        )
+
     def get_deployment(self, assignment_id: str) -> dict[str, Any] | None:
         """Find deployment policy by AssignmentID."""
         norm_id = assignment_id.strip()

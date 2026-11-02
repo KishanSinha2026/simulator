@@ -413,7 +413,7 @@ class ITSMService:
                             "environment": item.get("environment"),
                             "scheduled_start_at": self._parse_dt(item.get("scheduled_start_at")),
                             "scheduled_end_at": self._parse_dt(item.get("scheduled_end_at")),
-                            "source_payload": item.get("source_payload") or item,
+                            "source_payload": item,
                         }
                         if existing is None:
                             self.db.add(ITSMChange(**data))
@@ -429,7 +429,7 @@ class ITSMService:
         # Import worklogs
         if hasattr(self.provider, "list_worklogs"):
             try:
-                for item in self.provider.list_worklogs(limit=5000):
+                for item in self.provider.list_worklogs(limit=50000):
                     source_wid = str(item.get("source_worklog_id") or item.get("id") or "").strip()
                     change_ref = item.get("change_id") or item.get("source_change_id")
                     change = None
@@ -448,7 +448,7 @@ class ITSMService:
                             "worklog_type": item.get("worklog_type") or "General Information",
                             "description": item.get("description") or "Imported worklog",
                             "submitter": item.get("submitter"),
-                            "source_payload": item.get("source_payload") or item,
+                            "source_payload": item,
                         }
                         if existing_w is None:
                             self.db.add(ITSMWorklog(**wdata))

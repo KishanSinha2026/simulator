@@ -342,12 +342,18 @@ class SCCMService:
         devices_imported = 0
         collections_imported = 0
         deployments_imported = 0
+        deployment_runs_imported = 0
+        asset_details_imported = 0
         errors = 0
 
         # 1. Devices
         if hasattr(self.provider, "list_devices"):
             try:
                 raw_devices = self.provider.list_devices(limit=limit, offset=offset)
+                existing_map = {
+                    row.resource_id: row
+                    for row in self.db.query(SCCMDevice).all()
+                }
                 for item in raw_devices:
                     res_id = str(
                         item.get("resource_id")
@@ -358,11 +364,11 @@ class SCCMService:
                     ).strip()
                     if not res_id:
                         continue
-                    source_payload = item.get("source_payload") or item
+                    source_payload = item.get("source_payload") or {}
                     ip_value = item.get("ip_address") or item.get("IPAddress") or item.get("IPAddresses")
                     if isinstance(ip_value, list):
                         ip_value = ",".join(str(value) for value in ip_value if value)
-                    existing = self.device_repo.get_by_resource_id(res_id)
+                    existing = existing_map.get(res_id)
                     data = {
                         "resource_id": res_id,
                         "name": item.get("name") or item.get("hostname") or item.get("Name") or res_id,
@@ -379,12 +385,15 @@ class SCCMService:
                             item.get("last_active_time") or item.get("LastActiveTime")
                         ),
                         "collection_id": item.get("collection_id") or item.get("CollectionID"),
-                        "source_payload": source_payload,
+                        "source_payload": item,
                     }
                     if existing is None:
-                        self.device_repo.create(data)
+                        existing = SCCMDevice(**data)
+                        self.db.add(existing)
+                        existing_map[res_id] = existing
                     else:
-                        self.device_repo.update(existing, data)
+                        for key, value in data.items():
+                            setattr(existing, key, value)
                     devices_imported += 1
                 self.db.commit()
             except Exception:
@@ -395,6 +404,10 @@ class SCCMService:
         if hasattr(self.provider, "list_collections"):
             try:
                 raw_cols = self.provider.list_collections(limit=limit, offset=offset)
+                existing_map = {
+                    row.collection_id: row
+                    for row in self.db.query(SCCMCollection).all()
+                }
                 for item in raw_cols:
                     col_id = str(
                         item.get("collection_id")
@@ -404,18 +417,21 @@ class SCCMService:
                     ).strip()
                     if not col_id:
                         continue
-                    existing = self.collection_repo.get_by_collection_id(col_id)
+                    existing = existing_map.get(col_id)
                     data = {
                         "collection_id": col_id,
                         "name": item.get("name") or item.get("Name") or col_id,
                         "comment": item.get("comment") or item.get("Comment"),
                         "member_count": item.get("member_count", item.get("MemberCount", 0)),
-                        "source_payload": item.get("source_payload") or item,
+                        "source_payload": item,
                     }
                     if existing is None:
-                        self.collection_repo.create(data)
+                        existing = SCCMCollection(**data)
+                        self.db.add(existing)
+                        existing_map[col_id] = existing
                     else:
-                        self.collection_repo.update(existing, data)
+                        for key, value in data.items():
+                            setattr(existing, key, value)
                     collections_imported += 1
                 self.db.commit()
             except Exception:
@@ -426,6 +442,10 @@ class SCCMService:
         if hasattr(self.provider, "list_deployments"):
             try:
                 raw_deps = self.provider.list_deployments(limit=limit, offset=offset)
+                existing_map = {
+                    row.assignment_id: row
+                    for row in self.db.query(SCCMDeployment).all()
+                }
                 for item in raw_deps:
                     assign_id = str(
                         item.get("assignment_id")
@@ -435,7 +455,7 @@ class SCCMService:
                     ).strip()
                     if not assign_id:
                         continue
-                    existing = self.deployment_repo.get_by_assignment_id(assign_id)
+                    existing = existing_map.get(assign_id)
                     data = {
                         "assignment_id": assign_id,
                         "name": item.get("name") or item.get("AssignmentName") or item.get("Name") or assign_id,
@@ -454,13 +474,96 @@ class SCCMService:
                         "window_end": self._parse_datetime(
                             item.get("window_end") or item.get("WindowEnd") or item.get("Deadline")
                         ),
-                        "source_payload": item.get("source_payload") or item,
+                        "source_payload": item,
                     }
                     if existing is None:
-                        self.deployment_repo.create(data)
+                        existing = SCCMDeployment(**data)
+                        self.db.add(existing)
+                        existing_map[assign_id] = existing
                     else:
-                        self.deployment_repo.update(existing, data)
+                        for key, value in data.items():
+                            setattr(existing, key, value)
                     deployments_imported += 1
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                errors += 1
+
+        # JSON fixtures provide simulated run history; API mode only imports
+        # history if its provider explicitly exposes that supported operation.
+        if hasattr(self.provider, "list_deployment_runs"):
+            try:
+                existing_runs = {
+                    row.run_id: row
+                    for row in self.db.query(SCCMDeploymentRun).all()
+                }
+                raw_runs = self.provider.list_deployment_runs(limit=limit, offset=offset)
+                pending_details: list[tuple[SCCMDeploymentRun, dict[str, Any]]] = []
+                for item in raw_runs:
+                    run_id = str(item.get("run_id") or item.get("id") or "").strip()
+                    if not run_id:
+                        continue
+                    data = {
+                        "run_id": run_id,
+                        "change_number": str(item.get("change_number") or "SIMULATED"),
+                        "deployment_id": item.get("deployment_id"),
+                        "mode": str(item.get("mode") or "STANDARD_PATCH"),
+                        "target_collection_id": str(item.get("target_collection_id") or "UNKNOWN"),
+                        "assignment_id": str(item.get("assignment_id") or "UNKNOWN"),
+                        "window_start": self._parse_datetime(item.get("window_start")),
+                        "window_end": self._parse_datetime(item.get("window_end")),
+                        "reboot_policy": str(item.get("reboot_policy") or "CLIENT_APPROVED"),
+                        "status": str(item.get("status") or "unknown"),
+                        "compliant_count": int(item.get("compliant_count") or 0),
+                        "in_progress_count": int(item.get("in_progress_count") or 0),
+                        "error_count": int(item.get("error_count") or 0),
+                        "unknown_count": int(item.get("unknown_count") or 0),
+                        "skipped_count": int(item.get("skipped_count") or 0),
+                        "started_at": self._parse_datetime(item.get("started_at")),
+                        "completed_at": self._parse_datetime(item.get("completed_at")),
+                        "source_payload": item,
+                    }
+                    row = existing_runs.get(run_id)
+                    if row is None:
+                        row = SCCMDeploymentRun(**data)
+                        self.db.add(row)
+                        existing_runs[run_id] = row
+                    else:
+                        for key, value in data.items():
+                            setattr(row, key, value)
+                    pending_details.extend((row, detail) for detail in item.get("asset_details", []) if isinstance(detail, dict))
+                    deployment_runs_imported += 1
+                self.db.flush()
+                existing_details = {
+                    (row.deployment_run_id, row.resource_id): row
+                    for row in self.db.query(SCCMDeploymentAssetDetail).all()
+                }
+                for run, item in pending_details:
+                    resource_id = str(item.get("resource_id") or "").strip()
+                    if not resource_id:
+                        continue
+                    data = {
+                        "deployment_run_id": run.id,
+                        "resource_id": resource_id,
+                        "server_ci_id": item.get("server_ci_id"),
+                        "hostname": str(item.get("hostname") or resource_id),
+                        "status": str(item.get("status") or "Unknown"),
+                        "status_type": item.get("status_type"),
+                        "error_code": item.get("error_code"),
+                        "reboot_pending": bool(item.get("reboot_pending", False)),
+                        "status_time": self._parse_datetime(item.get("status_time")),
+                        "source_payload": item,
+                    }
+                    key = (run.id, resource_id)
+                    row = existing_details.get(key)
+                    if row is None:
+                        row = SCCMDeploymentAssetDetail(**data)
+                        self.db.add(row)
+                        existing_details[key] = row
+                    else:
+                        for field, value in data.items():
+                            setattr(row, field, value)
+                    asset_details_imported += 1
                 self.db.commit()
             except Exception:
                 self.db.rollback()
@@ -471,6 +574,8 @@ class SCCMService:
             "devices_imported": devices_imported,
             "collections_imported": collections_imported,
             "deployments_imported": deployments_imported,
+            "deployment_runs_imported": deployment_runs_imported,
+            "asset_details_imported": asset_details_imported,
             "errors": errors,
             "limit": limit,
             "offset": offset,

@@ -102,9 +102,9 @@ def import_job_templates(
 
 
 @router.get("/connection", response_model=ConnectorConnectionResponse)
-def test_connection() -> dict[str, Any]:
+def test_connection(db: Session = Depends(get_db)) -> dict[str, Any]:
     """Check controller connectivity without masking API failure as fixture mode."""
-    return check_connector_connection("ansible")
+    return check_connector_connection("ansible", db)
 
 
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED, response_model=AnsibleJobLaunchResponse)

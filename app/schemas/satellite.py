@@ -238,4 +238,6 @@ class SatelliteImportResponse(BaseModel):
 
     hosts_imported: int
     job_templates_imported: int
+    job_runs_imported: int = 0
+    host_results_imported: int = 0
     errors: int

@@ -5,6 +5,10 @@ records, and external routes used by providers with the BRD in
 `data/extracted_doc_summary.txt`. Paths on a provider are called by VPM360;
 they are not public VPM360 routes.
 
+The workbook [`VPM360_BRD_API_Backend_Mapping.xlsx`](VPM360_BRD_API_Backend_Mapping.xlsx)
+contains the BRD endpoint map, all 59 current VPM360 route declarations,
+fixture-to-PostgreSQL JSON equality results, and unresolved BRD gaps.
+
 ## Connector connection checks — BRD 3.1
 
 Each connector exposes `GET /api/v1/{connector}/connection` for Tenable,
@@ -13,8 +17,7 @@ read-only probe using that provider's configured endpoint and credentials.
 JSON mode verifies that local fixture data is readable and returns
 `status: fixture`, `connected: false`; it does not claim that the vendor is
 reachable. The response never includes credentials or source records. The
-BRD asks for connection health, last test, and a Test Connection control, but
-does not prescribe these endpoint paths. `/api/v1/health` and
+BRD asks for connection health, last test, and a Test Connection control. Each result is stored in PostgreSQL `integration_connection_checks`, and the response returns the durable `history_id`. The BRD does not prescribe these endpoint paths. `/api/v1/health` and
 `/api/v1/ready` remain VPM360 application/database health checks.
 
 ## Tenable — BRD 4.1
@@ -54,7 +57,7 @@ available.
 
 Vulnerability list/detail/create, exception list, and import routes are
 present. The API accepts the BRD `severity` field while persisting the
-normalized `risk_rating`, and responses expose both names. The exception
+normalized `risk_rating`, and responses expose both names. Fixture records retain all 82 exact Appendix B source keys under `source_payload.source_record`; the first record uses the sanitized Appendix E sample. Live URL, method, response and lifecycle semantics remain subject to Squad1/client confirmation. The exception
 response includes `is_expired`; the exception list returns only records with
 a non-expired end date. Ansible launch blocks exact target names with active
 exceptions, while the Satellite and SCCM simulated workflows mark matching
@@ -81,17 +84,21 @@ approved script execution, command status, per-host events, stdout evidence, and
 cancellation. The current `/api/v1/ansible` integration instead lists job
 templates and launches `job_templates/{id}/launch/`; it does not implement the
 BRD's `inventories/{id}/ad_hoc_commands` and events/stdout contract. It stores
-launch/status payloads in `ansible_job_runs`, but does not persist inventory
-hosts or normalized per-host event/evidence records. The JSON fixture fallback
-stores static demo templates and marks launches simulated. Therefore the AAP
-JSON retention exists, but the execution and per-host data model do not yet
-match BRD 4.7. Confirm the Controller version, inventory IDs, permissions, and
-approved scripts before implementing the live contract.
+launch/status payloads in `ansible_job_runs`; imported template records and the
+complete source JSON are stored in `ansible_job_templates.source_payload`.
+Template listing supports database pagination and imports fixtures when the
+table is empty. Inventory hosts and normalized per-host event/evidence records
+are not persisted. Therefore template/job JSON retention exists, but execution
+and per-host data requirements do not yet match BRD 4.7. Confirm the Controller
+version, inventory IDs, permissions, and approved scripts before implementing
+the live contract.
 
 ## SCCM — BRD 4.6 and 8.5.5
 
 The public device, collection, deployment, job history, and import endpoints
-are present. The AdminService provider currently implements inventory reads;
+are present. In fixture mode, import persists device, collection, deployment,
+deployment-run, and per-asset records to PostgreSQL with full source JSON. The
+AdminService provider currently implements inventory reads;
 `POST /api/v1/sccm/jobs` records a local simulated run rather than submitting a
 remote SCCM deployment. The SCCM device schema exposes `client_version` and
 BRD-compatible `source_device_id` / `hostname` aliases. Missing or
@@ -115,20 +122,31 @@ database CMDB class names are not specified in the BRD, so API mode requires
 the CMDB team to supply `CMDB_MIDDLEWARE_CLASS` and `CMDB_DATABASE_CLASS`.
 Apply migrations only through the configured database migration workflow.
 
-Migration `c1a9d8402f7b` adds Ansible job history, `e7d9c2b1456a` adds the
+Migration `c1a9d8402f7b` adds Ansible job history, `e4f6a8b0c2d4` adds stored
+Ansible job templates, and `e7d9c2b1456a` adds the
 normalized SCCM `client_version` field (backfilled from retained payloads),
 `f2b74c9d1360` adds the README deployment ID and per-asset reboot status, and
 `9b6f1c4e8a20` makes `reboot_pending` a required boolean. The checked database
-is at `9b6f1c4e8a20` and has no model/table column drift.
+is at `e4f6a8b0c2d4` and includes the Ansible template table.
+
+Fixture imports retain the complete input object in JSONB for CMDB, ITSM,
+Satellite, SCCM, Squad1, and Ansible. Tenable preserves the complete scanner
+finding under `source_payload.raw_record`. Satellite and SCCM demo run/result
+fixtures are also imported and remain marked simulated; they are not live
+execution evidence.
+
+The ITSM changes fixture `fixtures/itsm/multichanges.json` contains 20,000 deterministic simulated change records; these are demo values, not live Helix records.
 
 The extracted BRD source is `data/extracted_doc_summary.txt`. Its Appendix A
 Tenable fields are preserved in the finding payload; Appendix B Squad1 records
-are retained in full in `squad1_vulnerabilities.source_payload`; Appendix C
+are retained in full in `squad1_vulnerabilities.source_payload.source_record` (all 82 exact Appendix B keys); Appendix C
 CMDB inventory fields are normalized where mapped and the original source
 objects are retained; Appendix D Helix fields are mapped to normalized columns
 and raw entry JSON is retained. Satellite, SCCM, and Ansible source objects are
-also retained in their respective JSON/JSONB `source_payload` columns. This
-preserves source JSON but does not mean every BRD field has a dedicated column
+also retained in their respective JSON/JSONB `source_payload` columns. Fixture
+imports retain the complete fixture record, including any nested
+`source_payload`, so normalized demo fields are not dropped. This preserves
+source JSON but does not mean every BRD field has a dedicated column
 or that every execution/reporting workflow is implemented. Client contracts
 marked pending remain unverified.
 

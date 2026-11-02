@@ -470,7 +470,7 @@ def normalize_tenable_record(
 
     return {
         "source_finding_id": _source_identity(record),
-        "scan_id": None,
+        "scan_id": _text(_lookup(record, "Scan ID")),
         "plugin_id": plugin_id,
         "plugin_name": plugin_name,
         "ip_address": ip_address,

@@ -40,9 +40,9 @@ def get_tenable_service(
 
 
 @router.get("/connection", response_model=ConnectorConnectionResponse)
-def test_connection() -> dict[str, Any]:
+def test_connection(db: Session = Depends(get_db)) -> dict[str, Any]:
     """Check Tenable API reachability/authentication or fixture availability."""
-    return check_connector_connection("tenable")
+    return check_connector_connection("tenable", db)
 
 
 @router.get(
@@ -163,7 +163,7 @@ def list_scans(
     summary="Import and synchronize findings into PostgreSQL",
 )
 def import_findings(
-    limit: int = Query(default=100, ge=1, le=50000),
+    limit: int = Query(default=50000, ge=1, le=50000),
     offset: int = Query(default=0, ge=0),
     service: TenableService = Depends(get_tenable_service),
 ) -> dict[str, Any]:

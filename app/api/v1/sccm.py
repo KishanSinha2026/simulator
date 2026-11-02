@@ -47,9 +47,9 @@ def get_sccm_service(
 
 
 @router.get("/connection", response_model=ConnectorConnectionResponse)
-def test_connection() -> dict[str, Any]:
+def test_connection(db: Session = Depends(get_db)) -> dict[str, Any]:
     """Check SCCM AdminService reachability or fixture availability."""
-    return check_connector_connection("sccm")
+    return check_connector_connection("sccm", db)
 
 
 @router.get(

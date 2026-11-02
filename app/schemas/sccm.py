@@ -227,6 +227,8 @@ class SCCMImportResponse(BaseModel):
     devices_imported: int = Field(ge=0)
     collections_imported: int = Field(ge=0)
     deployments_imported: int = Field(ge=0)
+    deployment_runs_imported: int = Field(default=0, ge=0)
+    asset_details_imported: int = Field(default=0, ge=0)
     errors: int = Field(ge=0)
     limit: int = Field(ge=1, le=50000)
     offset: int = Field(ge=0)
