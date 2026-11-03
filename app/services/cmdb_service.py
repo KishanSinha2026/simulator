@@ -5,6 +5,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.cmdb import (
     CMDBDatabase,
     CMDBMiddleware,
@@ -72,7 +73,7 @@ class CMDBService:
     @staticmethod
     def _validate_pagination(limit: int, offset: int) -> None:
         """Validate pagination parameters."""
-        if not 1 <= limit <= 50000:
+        if not 1 <= limit <= 25000:
             raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
@@ -92,6 +93,19 @@ class CMDBService:
     ) -> dict[str, Any]:
         """List persisted server CIs with optional filters."""
         self._validate_pagination(limit, offset)
+
+        if get_settings().provider_for("cmdb") == "api":
+            imported = self.import_provider_data(limit=limit, offset=offset, include_source_ids=True)
+            ids = imported["server_ids"]
+            query = self.db.query(CMDBServer).filter(CMDBServer.source_instance_id.in_(ids))
+            if status:
+                query = query.filter(CMDBServer.status == status)
+            if ip_address:
+                query = query.filter(CMDBServer.ip_address == ip_address.strip())
+            records = {row.source_instance_id: row for row in query.all()}
+            items = [records[source_id] for source_id in ids if source_id in records]
+            return {"items": items, "total": len(items), "limit": limit, "offset": offset,
+                    "has_more": len(ids) == limit}
 
         # Auto-import from active provider (API or JSON fixture) if database is empty
         if self.db.query(CMDBServer).count() == 0:
@@ -138,6 +152,25 @@ class CMDBService:
 
         if not normalized_ip:
             raise ValueError("ip_address cannot be blank")
+
+        if get_settings().provider_for("cmdb") == "api":
+            # The API provider's generic list does not guarantee server-side IP
+            # filtering. Scan provider pages and retain only matching live CIs.
+            imported = self.import_provider_data(
+                limit=25000, offset=0, include_source_ids=True
+            )
+            ids = imported["server_ids"]
+            if not ids:
+                return []
+            return (
+                self.db.query(CMDBServer)
+                .filter(
+                    CMDBServer.source_instance_id.in_(ids),
+                    CMDBServer.ip_address == normalized_ip,
+                )
+                .order_by(CMDBServer.id)
+                .all()
+            )
 
         if self.db.query(CMDBServer).count() == 0:
             self.import_provider_data()
@@ -284,6 +317,17 @@ class CMDBService:
         """List persisted middleware CIs in PostgreSQL."""
         self._validate_pagination(limit, offset)
 
+        if get_settings().provider_for("cmdb") == "api":
+            imported = self.import_provider_data(limit=limit, offset=offset, include_source_ids=True)
+            ids = imported["middleware_ids"]
+            query = self.db.query(CMDBMiddleware).filter(CMDBMiddleware.source_instance_id.in_(ids))
+            if middleware_type:
+                query = query.filter(CMDBMiddleware.middleware_type == middleware_type)
+            records = {row.source_instance_id: row for row in query.all()}
+            items = [records[source_id] for source_id in ids if source_id in records]
+            return {"items": items, "total": len(items), "limit": limit, "offset": offset,
+                    "has_more": len(ids) == limit}
+
         query = self.db.query(CMDBMiddleware)
 
         if middleware_type:
@@ -361,6 +405,17 @@ class CMDBService:
         """List persisted database CIs in PostgreSQL."""
         self._validate_pagination(limit, offset)
 
+        if get_settings().provider_for("cmdb") == "api":
+            imported = self.import_provider_data(limit=limit, offset=offset, include_source_ids=True)
+            ids = imported["database_ids"]
+            query = self.db.query(CMDBDatabase).filter(CMDBDatabase.source_instance_id.in_(ids))
+            if database_type:
+                query = query.filter(CMDBDatabase.database_type == database_type)
+            records = {row.source_instance_id: row for row in query.all()}
+            items = [records[source_id] for source_id in ids if source_id in records]
+            return {"items": items, "total": len(items), "limit": limit, "offset": offset,
+                    "has_more": len(ids) == limit}
+
         query = self.db.query(CMDBDatabase)
 
         if database_type:
@@ -436,6 +491,11 @@ class CMDBService:
     ) -> dict[str, Any]:
         """List relationships between CMDB CIs."""
         self._validate_pagination(limit, offset)
+
+        if get_settings().provider_for("cmdb") == "api":
+            # The CMDB API integration has no approved list-relationships
+            # operation. Do not present stale fixture relationships as live data.
+            return {"items": [], "total": 0, "limit": limit, "offset": offset, "has_more": False}
 
         query = self.db.query(CMDBRelationship)
         total = query.count()
@@ -525,17 +585,22 @@ class CMDBService:
             return self.provider.create_server(payload)
         raise ValueError("Active provider does not support creating servers")
 
-    def import_provider_data(self) -> dict[str, Any]:
+    def import_provider_data(
+        self, *, limit: int = 50000, offset: int = 0, include_source_ids: bool = False
+    ) -> dict[str, Any]:
         """Import servers, middleware, and databases from the active provider into PostgreSQL."""
         servers_count = 0
         middleware_count = 0
         databases_count = 0
         errors = 0
+        server_ids: list[str] = []
+        middleware_ids: list[str] = []
+        database_ids: list[str] = []
 
         # 1. Import servers
         if hasattr(self.provider, "list_servers"):
             try:
-                raw_servers = self.provider.list_servers(limit=50000)
+                raw_servers = self.provider.list_servers(limit=limit, offset=offset)
                 clean_servers: dict[str, dict[str, Any]] = {}
                 for item in raw_servers:
                     sid = str(item.get("source_instance_id") or item.get("id") or "").strip()
@@ -543,6 +608,7 @@ class CMDBService:
                         clean_servers[sid] = item
 
                 chunk = list(clean_servers.values())
+                server_ids = list(clean_servers)
                 chunk_size = 500
                 for i in range(0, len(chunk), chunk_size):
                     batch = chunk[i : i + chunk_size]
@@ -596,10 +662,11 @@ class CMDBService:
         # 2. Import middleware
         if hasattr(self.provider, "list_middleware"):
             try:
-                for item in self.provider.list_middleware(limit=50000):
+                for item in self.provider.list_middleware(limit=limit, offset=offset):
                     source_id = str(item.get("source_instance_id") or item.get("id") or "").strip()
                     if not source_id:
                         continue
+                    middleware_ids.append(source_id)
                     existing = self.middleware_repository.get_by_source_id(source_id)
                     data = {
                         "source_instance_id": source_id,
@@ -639,10 +706,11 @@ class CMDBService:
         # 3. Import databases
         if hasattr(self.provider, "list_databases"):
             try:
-                for item in self.provider.list_databases(limit=50000):
+                for item in self.provider.list_databases(limit=limit, offset=offset):
                     source_id = str(item.get("source_instance_id") or item.get("id") or "").strip()
                     if not source_id:
                         continue
+                    database_ids.append(source_id)
                     existing = self.database_repository.get_by_source_id(source_id)
                     data = {
                         "source_instance_id": source_id,
@@ -675,9 +743,12 @@ class CMDBService:
                 self.db.rollback()
                 errors += 1
 
-        return {
+        result = {
             "servers_imported": servers_count,
             "middleware_imported": middleware_count,
             "databases_imported": databases_count,
             "errors": errors,
         }
+        if include_source_ids:
+            result.update(server_ids=server_ids, middleware_ids=middleware_ids, database_ids=database_ids)
+        return result

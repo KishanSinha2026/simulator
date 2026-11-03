@@ -3,7 +3,7 @@
 from datetime import datetime
 import ipaddress
 import re
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -64,6 +64,7 @@ class AnsibleJobTemplateListResponse(BaseModel):
     items: list[AnsibleJobTemplateResponse]
     count: int = Field(ge=0)
     next: str | None = None
+    provider_mode: Literal["api", "json"]
 
 
 class AnsibleJobLaunchResponse(BaseModel):

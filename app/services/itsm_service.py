@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.itsm import (
     ITSMChange,
     ITSMChangeHistory,
@@ -77,6 +78,18 @@ class ITSMService:
 
         if offset < 0:
             raise ValueError("offset cannot be negative")
+
+        if get_settings().provider_for("itsm") == "api":
+            imported = self.import_provider_changes(limit=limit, offset=offset, include_source_ids=True)
+            ids = imported["change_ids"]
+            query = self.db.query(ITSMChange).filter(ITSMChange.source_change_id.in_(ids))
+            if status:
+                query = query.filter(ITSMChange.status == status)
+            records = {row.source_change_id: row for row in query.all()}
+            items = [records[source_id] for source_id in ids if source_id in records]
+            items = [row for row in items if not status or row.status == status]
+            return {"items": items, "total": len(items), "limit": limit, "offset": offset,
+                    "has_more": len(ids) == limit}
 
         # Auto-import from active provider (API or JSON fixture) if database is empty
         if self.db.query(ITSMChange).count() == 0:
@@ -252,6 +265,18 @@ class ITSMService:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
+        if get_settings().provider_for("itsm") == "api":
+            imported = self.import_provider_changes(limit=limit, offset=offset, include_source_ids=True)
+            ids = imported["worklog_ids"]
+            query = self.db.query(ITSMWorklog).filter(ITSMWorklog.source_worklog_id.in_(ids))
+            if change_id is not None:
+                query = query.filter(ITSMWorklog.change_id == change_id)
+            records = {row.source_worklog_id: row for row in query.all()}
+            items = [records[source_id] for source_id in ids if source_id in records]
+            items = [row for row in items if change_id is None or row.change_id == change_id]
+            return {"items": items, "total": len(items), "limit": limit, "offset": offset,
+                    "has_more": len(ids) == limit}
+
         query = self.db.query(ITSMWorklog)
         if change_id is not None:
             query = query.filter(ITSMWorklog.change_id == change_id)
@@ -364,16 +389,20 @@ class ITSMService:
             return self.provider.create_change(payload)
         raise ValueError("Active provider does not support creating changes")
 
-    def import_provider_changes(self) -> dict[str, Any]:
+    def import_provider_changes(
+        self, *, limit: int = 50000, offset: int = 0, include_source_ids: bool = False
+    ) -> dict[str, Any]:
         """Import changes and worklogs from provider into PostgreSQL."""
         changes_imported = 0
         worklogs_imported = 0
         errors = 0
+        source_change_ids: list[str] = []
+        source_worklog_ids: list[str] = []
 
         # Import changes in batches
         if hasattr(self.provider, "list_changes"):
             try:
-                raw_changes = self.provider.list_changes(limit=50000)
+                raw_changes = self.provider.list_changes(limit=limit, offset=offset)
                 clean_changes: dict[str, dict[str, Any]] = {}
                 for item in raw_changes:
                     sid = str(item.get("source_change_id") or item.get("id") or "").strip()
@@ -381,6 +410,7 @@ class ITSMService:
                         clean_changes[sid] = item
 
                 chunk = list(clean_changes.values())
+                source_change_ids = list(clean_changes)
                 chunk_size = 500
                 for i in range(0, len(chunk), chunk_size):
                     batch = chunk[i : i + chunk_size]
@@ -429,8 +459,10 @@ class ITSMService:
         # Import worklogs
         if hasattr(self.provider, "list_worklogs"):
             try:
-                for item in self.provider.list_worklogs(limit=50000):
+                for item in self.provider.list_worklogs(limit=limit, offset=offset):
                     source_wid = str(item.get("source_worklog_id") or item.get("id") or "").strip()
+                    if source_wid:
+                        source_worklog_ids.append(source_wid)
                     change_ref = item.get("change_id") or item.get("source_change_id")
                     change = None
                     if change_ref:
@@ -461,8 +493,11 @@ class ITSMService:
                 self.db.rollback()
                 errors += 1
 
-        return {
+        result = {
             "changes_imported": changes_imported,
             "worklogs_imported": worklogs_imported,
             "errors": errors,
         }
+        if include_source_ids:
+            result.update(change_ids=source_change_ids, worklog_ids=source_worklog_ids)
+        return result

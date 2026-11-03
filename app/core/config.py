@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ProviderMode = Literal["json", "api"]
 HttpMethod = Literal["GET", "POST"]
 TenablePagingMode = Literal["none", "offset_limit"]
-TenableRequestLocation = Literal["query", "json"]
+TenableRequestLocation = Literal["query", "json", "path"]
 
 
 class Settings(BaseSettings):
@@ -65,34 +65,29 @@ class Settings(BaseSettings):
     tenable_secret_key: SecretStr | None = None
     tenable_verify_tls: bool = True
 
-    # Routes supplied in the BRD.
-    tenable_scan_result_path: str = "/rest/scanResult"
-    tenable_analysis_path: str = "/rest/analysis"
+    # Nessus API routes; values may be overridden for Security Center.
+    tenable_scan_result_path: str = "/scans"
+    tenable_analysis_path: str = "/scans/{scan_id}"
 
     tenable_scan_result_fields: str = (
         "id,name,description,status,details,resultType,startTime,"
         "finishtime,scanduration,repository"
     )
 
-    # Client contract values must be confirmed before API activation.
-    tenable_auth_header_name: str = ""
+    # Nessus API key header. Security Center deployments may override this.
+    tenable_auth_header_name: str = "X-ApiKeys"
     tenable_auth_header_prefix: str = ""
 
-    tenable_scan_result_method: HttpMethod | None = None
-    tenable_analysis_method: HttpMethod | None = None
+    tenable_scan_result_method: HttpMethod | None = "GET"
+    tenable_analysis_method: HttpMethod | None = "GET"
 
-    tenable_analysis_id_param: str = ""
-    tenable_analysis_id_location: TenableRequestLocation | None = None
+    tenable_analysis_id_param: str = "scanID"
+    tenable_analysis_id_location: TenableRequestLocation | None = "path"
 
-    tenable_scan_result_paging_mode: TenablePagingMode | None = None
+    # Nessus /scans currently returns its scan list without offset/limit params.
+    tenable_scan_result_paging_mode: TenablePagingMode | None = "none"
     tenable_scan_result_offset_param: str = ""
     tenable_scan_result_limit_param: str = ""
-    tenable_scan_result_page_size: int = Field(
-        default=100,
-        ge=1,
-        le=1000,
-    )
-    tenable_max_scan_results: int = Field(default=50000, ge=1)
 
     # ---------------------------------------------------------
     # BMC Helix CMDB - read/correlation configuration

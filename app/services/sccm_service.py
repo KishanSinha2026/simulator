@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.sccm import (
     SCCMCollection,
     SCCMDeployment,
@@ -37,7 +38,7 @@ class SCCMService:
     @staticmethod
     def _validate_pagination(limit: int, offset: int) -> None:
         """Validate pagination parameters."""
-        if not 1 <= limit <= 50000:
+        if not 1 <= limit <= 25000:
             raise ValueError("limit must be between 1 and 50000")
         if offset < 0:
             raise ValueError("offset cannot be negative")
@@ -67,22 +68,34 @@ class SCCMService:
         """List devices and readiness activity."""
         self._validate_pagination(limit, offset)
 
-        if self.db.query(SCCMDevice).count() == 0:
+        provider_page_ids: list[str] | None = None
+        if get_settings().provider_for("sccm") == "api":
+            provider_page_ids = self.import_provider_data(limit=limit, offset=offset, include_source_ids=True)["device_ids"]
+        elif self.db.query(SCCMDevice).count() == 0:
             self.import_provider_data()
 
         query = self.db.query(SCCMDevice)
         if collection_id:
             query = query.filter(SCCMDevice.collection_id == collection_id.strip())
 
-        total = query.count()
-        items = query.order_by(SCCMDevice.id).offset(offset).limit(limit).all()
+        if provider_page_ids is not None:
+            query = query.filter(SCCMDevice.resource_id.in_(provider_page_ids)) if provider_page_ids else query.filter(False)
+            rows = query.all()
+            by_id = {row.resource_id: row for row in rows}
+            items = [by_id[key] for key in provider_page_ids if key in by_id]
+            total = len(items)
+            has_more = len(provider_page_ids) == limit
+        else:
+            total = query.count()
+            items = query.order_by(SCCMDevice.id).offset(offset).limit(limit).all()
+            has_more = offset + len(items) < total
 
         return {
             "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,
-            "has_more": offset + len(items) < total,
+            "has_more": has_more,
         }
 
     def get_device(self, device_id: int) -> SCCMDevice | None:
@@ -104,19 +117,31 @@ class SCCMService:
         """List approved device collections."""
         self._validate_pagination(limit, offset)
 
-        if self.db.query(SCCMCollection).count() == 0:
+        provider_page_ids: list[str] | None = None
+        if get_settings().provider_for("sccm") == "api":
+            provider_page_ids = self.import_provider_data(limit=limit, offset=offset, include_source_ids=True)["collection_ids"]
+        elif self.db.query(SCCMCollection).count() == 0:
             self.import_provider_data()
 
         query = self.db.query(SCCMCollection)
-        total = query.count()
-        items = query.order_by(SCCMCollection.id).offset(offset).limit(limit).all()
+        if provider_page_ids is not None:
+            query = query.filter(SCCMCollection.collection_id.in_(provider_page_ids)) if provider_page_ids else query.filter(False)
+            rows = query.all()
+            by_id = {row.collection_id: row for row in rows}
+            items = [by_id[key] for key in provider_page_ids if key in by_id]
+            total = len(items)
+            has_more = len(provider_page_ids) == limit
+        else:
+            total = query.count()
+            items = query.order_by(SCCMCollection.id).offset(offset).limit(limit).all()
+            has_more = offset + len(items) < total
 
         return {
             "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,
-            "has_more": offset + len(items) < total,
+            "has_more": has_more,
         }
 
     def get_collection(self, collection_id: str) -> SCCMCollection | None:
@@ -136,19 +161,31 @@ class SCCMService:
         """List software update group deployment policies."""
         self._validate_pagination(limit, offset)
 
-        if self.db.query(SCCMDeployment).count() == 0:
+        provider_page_ids: list[str] | None = None
+        if get_settings().provider_for("sccm") == "api":
+            provider_page_ids = self.import_provider_data(limit=limit, offset=offset, include_source_ids=True)["deployment_ids"]
+        elif self.db.query(SCCMDeployment).count() == 0:
             self.import_provider_data()
 
         query = self.db.query(SCCMDeployment)
-        total = query.count()
-        items = query.order_by(SCCMDeployment.id).offset(offset).limit(limit).all()
+        if provider_page_ids is not None:
+            query = query.filter(SCCMDeployment.assignment_id.in_(provider_page_ids)) if provider_page_ids else query.filter(False)
+            rows = query.all()
+            by_id = {row.assignment_id: row for row in rows}
+            items = [by_id[key] for key in provider_page_ids if key in by_id]
+            total = len(items)
+            has_more = len(provider_page_ids) == limit
+        else:
+            total = query.count()
+            items = query.order_by(SCCMDeployment.id).offset(offset).limit(limit).all()
+            has_more = offset + len(items) < total
 
         return {
             "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,
-            "has_more": offset + len(items) < total,
+            "has_more": has_more,
         }
 
     # ------------------------------------------------------------------
@@ -336,7 +373,9 @@ class SCCMService:
     # Batch Synchronization / Import
     # ------------------------------------------------------------------
 
-    def import_provider_data(self, *, limit: int = 50000, offset: int = 0) -> dict[str, Any]:
+    def import_provider_data(
+        self, *, limit: int = 50000, offset: int = 0, include_source_ids: bool = False
+    ) -> dict[str, Any]:
         """Synchronize a page of devices, collections, and deployments into PostgreSQL."""
         self._validate_pagination(limit, offset)
         devices_imported = 0
@@ -345,6 +384,9 @@ class SCCMService:
         deployment_runs_imported = 0
         asset_details_imported = 0
         errors = 0
+        device_ids: list[str] = []
+        collection_ids: list[str] = []
+        deployment_ids: list[str] = []
 
         # 1. Devices
         if hasattr(self.provider, "list_devices"):
@@ -395,6 +437,7 @@ class SCCMService:
                         for key, value in data.items():
                             setattr(existing, key, value)
                     devices_imported += 1
+                    device_ids.append(res_id)
                 self.db.commit()
             except Exception:
                 self.db.rollback()
@@ -433,6 +476,7 @@ class SCCMService:
                         for key, value in data.items():
                             setattr(existing, key, value)
                     collections_imported += 1
+                    collection_ids.append(col_id)
                 self.db.commit()
             except Exception:
                 self.db.rollback()
@@ -484,6 +528,7 @@ class SCCMService:
                         for key, value in data.items():
                             setattr(existing, key, value)
                     deployments_imported += 1
+                    deployment_ids.append(assign_id)
                 self.db.commit()
             except Exception:
                 self.db.rollback()
@@ -569,7 +614,7 @@ class SCCMService:
                 self.db.rollback()
                 errors += 1
 
-        return {
+        result = {
             "status": "completed",
             "devices_imported": devices_imported,
             "collections_imported": collections_imported,
@@ -580,3 +625,6 @@ class SCCMService:
             "limit": limit,
             "offset": offset,
         }
+        if include_source_ids:
+            result.update({"device_ids": device_ids, "collection_ids": collection_ids, "deployment_ids": deployment_ids})
+        return result

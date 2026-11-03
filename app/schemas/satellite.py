@@ -241,3 +241,6 @@ class SatelliteImportResponse(BaseModel):
     job_runs_imported: int = 0
     host_results_imported: int = 0
     errors: int
+    error_details: list[str] = Field(default_factory=list)
+    limit: int = Field(ge=1, le=50000)
+    offset: int = Field(ge=0)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -14,8 +15,14 @@ from app.providers.tenable_normalizer import normalize_tenable_record
 class TenableAPIProvider:
     """Retrieve Tenable scan and finding details using the approved API contract."""
 
+    SCAN_RESULT_PAGE_SIZE = 100
+    MAX_SCAN_RESULTS = 50000
+
     WRAPPER_KEYS = (
         "data",
+        "scans",
+        "vulnerabilities",
+        "hosts",
         "results",
         "items",
         "response",
@@ -85,16 +92,17 @@ class TenableAPIProvider:
         auth_header_name = settings.tenable_auth_header_name.strip()
         auth_prefix = settings.tenable_auth_header_prefix
 
-        if auth_header_name.casefold() == "x-apikeys":
+        if auth_header_name.casefold() in {"x-apikey", "x-apikeys"}:
             if not secret_key:
                 raise ValueError(
                     "TENABLE_SECRET_KEY is required when the approved "
                     "authentication header is X-ApiKeys."
                 )
 
-            auth_value = (
-                f"accessKey={access_key}; secretKey={secret_key}"
-            )
+            if auth_header_name.casefold() == "x-apikeys":
+                auth_value = f"accessKey={access_key};secretKey={secret_key};"
+            else:
+                auth_value = f"accesskey={access_key};secretkey={secret_key};"
         else:
             auth_value = f"{auth_prefix}{access_key}"
 
@@ -299,14 +307,14 @@ class TenableAPIProvider:
     ) -> list[dict[str, Any]]:
         settings = self.settings
 
-        params: dict[str, Any] = {
-            "fields": settings.tenable_scan_result_fields,
-        }
+        params: dict[str, Any] = {}
+        if settings.tenable_scan_result_path.startswith("/rest/"):
+            params["fields"] = settings.tenable_scan_result_fields
 
         if settings.tenable_scan_result_paging_mode == "offset_limit":
             params[settings.tenable_scan_result_offset_param] = offset
             params[settings.tenable_scan_result_limit_param] = (
-                settings.tenable_scan_result_page_size
+                self.SCAN_RESULT_PAGE_SIZE
             )
 
         payload = self._request_json(
@@ -328,7 +336,7 @@ class TenableAPIProvider:
         if settings.tenable_scan_result_paging_mode == "none":
             page = self._fetch_scan_result_page(offset=0)
 
-            if len(page) >= settings.tenable_max_scan_results:
+            if len(page) >= self.MAX_SCAN_RESULTS:
                 raise RuntimeError(
                     "The unpaged scanResult response reached the configured "
                     "safety limit. Confirm paging and increase limits only "
@@ -338,7 +346,7 @@ class TenableAPIProvider:
             return page
 
         offset = 0
-        page_size = settings.tenable_scan_result_page_size
+        page_size = self.SCAN_RESULT_PAGE_SIZE
 
         while True:
             page = self._fetch_scan_result_page(offset=offset)
@@ -346,9 +354,10 @@ class TenableAPIProvider:
             if not page:
                 break
 
-            if len(scans) + len(page) > settings.tenable_max_scan_results:
+            if len(scans) + len(page) > self.MAX_SCAN_RESULTS:
                 raise RuntimeError(
-                    "Tenable scan import exceeded TENABLE_MAX_SCAN_RESULTS. "
+                f"Tenable scan import exceeded the configured safety limit "
+                f"({self.MAX_SCAN_RESULTS}). "
                     "No partial result set will be reported as complete."
                 )
 
@@ -372,11 +381,11 @@ class TenableAPIProvider:
         return scans[offset : offset + limit]
 
     def test_connection(self) -> dict[str, Any]:
-        """Check auth and reachability with a read-only scanResult request."""
+        """Check auth and reachability with a read-only scan-list request."""
         settings = self.settings
-        params: dict[str, Any] = {
-            "fields": settings.tenable_scan_result_fields,
-        }
+        params: dict[str, Any] = {}
+        if settings.tenable_scan_result_path.startswith("/rest/"):
+            params["fields"] = settings.tenable_scan_result_fields
 
         if settings.tenable_scan_result_paging_mode == "offset_limit":
             params[settings.tenable_scan_result_offset_param] = 0
@@ -387,7 +396,7 @@ class TenableAPIProvider:
             settings.tenable_scan_result_path,
             params=params,
         )
-        return {"connected": True, "probe": "scanResult"}
+        return {"connected": True, "probe": settings.tenable_scan_result_path}
 
 
     def _fetch_analysis(
@@ -410,23 +419,66 @@ class TenableAPIProvider:
 
         params: dict[str, Any] = {}
         json_body: dict[str, Any] | None = None
+        analysis_path = settings.tenable_analysis_path
 
         if location == "query":
             params[parameter] = value
         elif location == "json":
             json_body = {parameter: value}
+        elif location == "path":
+            if "{scan_id}" not in analysis_path:
+                raise RuntimeError(
+                    "TENABLE_ANALYSIS_PATH must contain {scan_id} when "
+                    "TENABLE_ANALYSIS_ID_LOCATION=path."
+                )
+            analysis_path = analysis_path.replace(
+                "{scan_id}", quote(value, safe="")
+            )
         else:
             raise RuntimeError(
-                "TENABLE_ANALYSIS_ID_LOCATION must be confirmed as "
-                "'query' or 'json'."
+                "TENABLE_ANALYSIS_ID_LOCATION must be 'query', 'json', or 'path'."
             )
 
         payload = self._request_json(
             settings.tenable_analysis_method,
-            settings.tenable_analysis_path,
+            analysis_path,
             params=params or None,
             json_body=json_body,
         )
+
+        if location == "path" and isinstance(payload, dict):
+            findings: list[dict[str, Any]] = []
+            for host in payload.get("hosts") or []:
+                if not isinstance(host, dict) or host.get("host_id") is None:
+                    continue
+                host_id = str(host["host_id"])
+                host_path = (
+                    f"{analysis_path.rstrip('/')}/hosts/{quote(host_id, safe='')}"
+                )
+                host_payload = self._request_json("GET", host_path)
+                if not isinstance(host_payload, dict):
+                    continue
+                host_info = host_payload.get("info") or {}
+                for vulnerability in host_payload.get("vulnerabilities") or []:
+                    if not isinstance(vulnerability, dict):
+                        continue
+                    finding = dict(vulnerability)
+                    plugin_id = finding.get("plugin_id") or finding.get("pluginID")
+                    finding.setdefault(
+                        "source_finding_id",
+                        f"{source_scan_id}:{host_id}:{plugin_id or finding.get('vuln_index', '')}",
+                    )
+                    finding.setdefault("scan_id", str(source_scan_id))
+                    finding.setdefault("host_id", host_id)
+                    finding.setdefault("ip_address", host_info.get("host-ip"))
+                    finding.setdefault("dns_name", host.get("hostname"))
+                    severity = finding.get("severity")
+                    if isinstance(severity, int):
+                        finding["severity"] = {
+                            0: "Info", 1: "Low", 2: "Medium", 3: "High", 4: "Critical"
+                        }.get(severity, str(severity))
+                    findings.append(finding)
+            return findings
 
         return self._extract_records(
             payload,
@@ -441,7 +493,7 @@ class TenableAPIProvider:
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Fetch and normalize detailed findings via the BRD routes."""
-        if not 1 <= limit <= 50000:
+        if not 1 <= limit <= 25000:
             raise ValueError("limit must be between 1 and 50000")
 
         if offset < 0:
@@ -490,7 +542,7 @@ class TenableAPIProvider:
 
                 normalized_findings.append(finding)
 
-                if len(normalized_findings) > self.settings.tenable_max_scan_results:
+                if len(normalized_findings) > self.MAX_SCAN_RESULTS:
                     raise RuntimeError(
                         "Tenable detail import exceeded the configured "
                         "safety limit."

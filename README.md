@@ -33,7 +33,7 @@ Ansible Automation Platform / AWX is available as an API-backed patch execution 
 
 ## Architectural Overview
 
-- **Single-Route Architecture**: Callers invoke one VPM360 endpoint (e.g. `/api/v1/tenable/findings`) for the supported workflow. Depending on the integration and configured provider, an operation may use an external API, local PostgreSQL, or JSON fixtures. BRD-pending vendor operations are not treated as live integrations until the client confirms their contracts.
+- **Single-Route Architecture**: Callers invoke one VPM360 endpoint (e.g. `/api/v1/tenable/findings`) for the supported workflow. Depending on the integration and configured provider, an operation may use an external API, local PostgreSQL, or JSON fixtures.
 - **Auto-Synchronization**: Automatically imports and initializes baseline records from fixtures or remote sources into PostgreSQL if target tables are empty.
 - **High-Performance Caching & Batch Ingestion**: File-modification (`st_mtime`) validated cache prevents re-parsing large JSON records on repeated calls. Ingestion batches in 500-item chunks with atomic commits.
 - **Strict Idempotency**: Duplicate POST requests or repeated `/import` triggers merge updates smoothly based on natural source keys (`source_finding_id`, `source_instance_id`, `source_change_id`, `source_host_id`, `source_template_id`, `vulnerability_no`, `source_device_id`) rather than throwing HTTP 409, 422, or 500 errors.
@@ -420,7 +420,7 @@ SCCM 2509 models Windows patching as specified in BRD Section 4.6 (Table 20) and
 
 ### 2.7 Ansible Automation Platform / AWX
 
-The AAP API uses a configured bearer token and API root (`/api/controller/v2` by default; override with `ANSIBLE_API_PREFIX` for older AWX deployments). The token is read from `ANSIBLE_API_KEY` and is not stored in the database. When the controller is unreachable, the integration reads the local Ansible template fixture and safely simulates job launches; it never executes remote changes in fixture mode. **BRD 4.7 gap:** this implementation uses AAP job templates and does not yet implement the BRD's inventory host, ad-hoc command, per-host event, and stdout endpoints.
+The AAP API uses a configured bearer token and API root (`/api/controller/v2` by default; override with `ANSIBLE_API_PREFIX` for older AWX deployments). The token is read from `ANSIBLE_API_KEY` and is not stored in the database. `GET /api/v1/ansible/job-templates` fetches the requested page from the configured provider on every call, upserts returned templates into PostgreSQL, and reports `provider_mode` as `api` or `json`. The local template fixture is used only when JSON mode is selected or the live controller is unreachable; launches in fixture mode are simulated. **BRD 4.7 gap:** this implementation uses AAP job templates and does not yet implement the BRD's inventory host, ad-hoc command, per-host event, and stdout endpoints.
 
 #### Patch Job Launch Request (`POST /api/v1/ansible/jobs`)
 
@@ -486,7 +486,7 @@ The table below lists the main public operations. The generated OpenAPI document
 | | `GET` | `/api/v1/satellite/jobs/{id}/hosts/{h_id}` | Read a stored per-host job result (BRD S5) |
 | | `GET` | `/api/v1/satellite/jobs/{id}/hosts/{h_id}/raw` | Read stored raw output or request the provider's S6 raw output in API mode |
 | | `POST` | `/api/v1/satellite/jobs/{id}/cancel` | Cancel a pending VPM360 simulated job (BRD S7); remote cancellation is not wired to this route |
-| | `POST` | `/api/v1/satellite/import` | Synchronize hosts, templates, and fixture-backed simulated job/result history |
+| | `POST` | `/api/v1/satellite/import?limit=50000&offset=0` | Import the requested page of live or fixture hosts, templates, and available run/result records into PostgreSQL |
 | **Squad1** | `GET` | `/api/v1/squad1/vulnerabilities` | List vulnerabilities (supports `limit=50000`, BRD 4.2) |
 | | `GET` | `/api/v1/squad1/connection` | Test Squad1 API access or report fixture mode |
 | | `POST` | `/api/v1/squad1/vulnerabilities` | Ingest or update a vulnerability finding |
@@ -512,7 +512,7 @@ The table below lists the main public operations. The generated OpenAPI document
 
 ## 20k+ Dataset Throughput & Idempotency
 
-1. **50,000 Pagination Upper Bound**: All listing endpoints permit `limit <= 50000`, allowing consumers to fetch massive datasets in single round-trips without encountering `422 Unprocessable Entity` errors.
+1. **50,000 Pagination Upper Bound**: All listing endpoints permit `limit <= 25000`, allowing consumers to fetch massive datasets in single round-trips without encountering `422 Unprocessable Entity` errors.
 2. **In-Memory Fixture Cache**: Global `_FIXTURE_CACHE` stores parsed JSON payloads keyed by file modification time (`st_mtime`). Repeated reads of 20,000 records return in under **1 millisecond**.
 3. **Fast-Path Normalization**: Avoids deep re-normalization when reading fixture rows that already contain normalized attributes, cutting processing time from ~50 seconds to **0.009 seconds**.
 4. **500-Item Chunked Batch Ingestion**: Replaces slow per-row SQL flushes and savepoints with vectorized `filter(source_id.in_(chunk_ids))` lookups and atomic chunk commits, preventing PostgreSQL connection stalls.

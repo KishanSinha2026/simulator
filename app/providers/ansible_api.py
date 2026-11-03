@@ -69,7 +69,7 @@ class AnsibleAPIProvider:
 
     def list_templates(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
         """List templates while translating VPM offset/limit to AAP pages."""
-        if not 1 <= limit <= 50000 or offset < 0:
+        if not 1 <= limit <= 25000 or offset < 0:
             raise ValueError("limit must be between 1 and 50000 and offset cannot be negative")
         # AAP controller uses page pagination; gateway versions reject offset.
         page_size = min(limit, 200)
@@ -101,11 +101,12 @@ class AnsibleAPIProvider:
             "results": results,
             "count": total,
             "next": f"?offset={next_offset}" if has_next and next_offset < total else None,
+            "provider_mode": "api",
         }
 
     def list_jobs(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
         """Fetch controller jobs using AAP's page-based pagination."""
-        if not 1 <= limit <= 50000 or offset < 0:
+        if not 1 <= limit <= 25000 or offset < 0:
             raise ValueError("limit must be between 1 and 50000 and offset cannot be negative")
         page_size = min(limit, 200)
         page = offset // page_size + 1
@@ -136,6 +137,7 @@ class AnsibleAPIProvider:
             "results": results,
             "count": total,
             "next": f"?offset={next_offset}" if has_next and next_offset < total else None,
+            "provider_mode": "api",
         }
 
     def test_connection(self) -> dict[str, Any]:

@@ -89,16 +89,33 @@ def list_job_templates(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    if db.query(AnsibleJobTemplate).count() == 0:
-        _import_templates(db, limit=50000, offset=0)
-    query = db.query(AnsibleJobTemplate).order_by(AnsibleJobTemplate.id)
-    count = query.count()
-    rows = query.offset(offset).limit(limit).all()
-    next_offset = offset + len(rows)
+    try:
+        data = _provider().list_templates(limit=limit, offset=offset)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    for item in data.get("results", []):
+        source_id = str(item.get("id") or item.get("source_template_id") or "").strip()
+        if not source_id:
+            continue
+        row = db.query(AnsibleJobTemplate).filter_by(source_template_id=source_id).one_or_none()
+        values = {
+            "source_template_id": source_id,
+            "name": str(item.get("name") or source_id),
+            "description": item.get("description"),
+            "source_payload": item,
+        }
+        if row is None:
+            db.add(AnsibleJobTemplate(**values))
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
+    db.commit()
     return {
-        "items": [row.source_payload for row in rows],
-        "count": count,
-        "next": f"?offset={next_offset}" if next_offset < count else None,
+        "items": data.get("results", []),
+        "count": int(data.get("count") or 0),
+        "next": data.get("next"),
+        "provider_mode": data.get("provider_mode", "api"),
     }
 
 

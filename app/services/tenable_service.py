@@ -5,6 +5,7 @@ from typing import Any
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.tenable import TenableFinding, TenableFindingCVE, TenableScan
 from app.providers.tenable_normalizer import normalize_tenable_record
 from app.repositories.tenable import TenableFindingRepository, TenableScanRepository
@@ -36,8 +37,15 @@ class TenableService:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
-        # If DB is empty, auto-populate from active provider (API or JSON fixture)
-        if self.db.query(TenableFinding).count() == 0:
+        provider_page_ids: list[str] | None = None
+        provider_page_has_more = False
+        if get_settings().provider_for("tenable") == "api":
+            imported = self.import_provider_findings(
+                limit=limit, offset=offset, include_source_ids=True
+            )
+            provider_page_ids = imported["source_finding_ids"]
+            provider_page_has_more = imported["records_received"] == limit
+        elif self.db.query(TenableFinding).count() == 0:
             self.import_provider_findings(limit=50000)
 
         query = self.db.query(TenableFinding)
@@ -59,21 +67,24 @@ class TenableService:
                 .notin_(("info", "informational"))
             )
 
-        total = query.count()
-
-        items = (
-            query.order_by(TenableFinding.id)
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+        if provider_page_ids is not None:
+            query = query.filter(TenableFinding.source_finding_id.in_(provider_page_ids)) if provider_page_ids else query.filter(False)
+            rows = query.all()
+            by_source_id = {row.source_finding_id: row for row in rows}
+            items = [by_source_id[key] for key in provider_page_ids if key in by_source_id]
+            total = len(items)
+            has_more = provider_page_has_more
+        else:
+            total = query.count()
+            items = query.order_by(TenableFinding.id).offset(offset).limit(limit).all()
+            has_more = offset + len(items) < total
 
         return {
             "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,
-            "has_more": offset + len(items) < total,
+            "has_more": has_more,
         }
 
     def get_finding(self, finding_id: int) -> TenableFinding | None:
@@ -172,6 +183,7 @@ class TenableService:
         *,
         limit: int = 50000,
         offset: int = 0,
+        include_source_ids: bool = False,
     ) -> dict[str, Any]:
         """Normalize and idempotently upsert findings from the provider in optimized batches.
 
@@ -316,10 +328,12 @@ class TenableService:
                         self.db.rollback()
                         errors += 1
 
+        scans_batch: list[dict[str, Any]] = []
+        scan_ids: list[str] = []
         # Also import provider scans if available
         if hasattr(self.provider, "list_scans"):
             try:
-                scans_batch = self.provider.list_scans(limit=min(limit, 50000))
+                scans_batch = self.provider.list_scans(limit=limit, offset=offset)
                 scan_ids = [
                     str(s.get("id") or s.get("source_scan_id") or "").strip()
                     for s in scans_batch
@@ -345,7 +359,7 @@ class TenableService:
             except Exception:
                 self.db.rollback()
 
-        return {
+        result = {
             "records_received": len(raw_records),
             "created": created,
             "updated": updated,
@@ -355,6 +369,11 @@ class TenableService:
             "source_offset": offset,
             "source_limit": limit,
         }
+        if include_source_ids:
+            result["source_finding_ids"] = [item[0] for item in clean_batch]
+            result["source_scan_ids"] = scan_ids
+            result["scan_records_received"] = len(scans_batch)
+        return result
 
     def list_scans(
         self,
@@ -368,20 +387,36 @@ class TenableService:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
-        # If DB is empty, auto-populate scans from provider
-        if self.db.query(TenableScan).count() == 0:
+        provider_page_ids: list[str] | None = None
+        provider_page_has_more = False
+        if get_settings().provider_for("tenable") == "api":
+            imported = self.import_provider_findings(
+                limit=limit, offset=offset, include_source_ids=True
+            )
+            provider_page_ids = imported["source_scan_ids"]
+            provider_page_has_more = imported["scan_records_received"] == limit
+        elif self.db.query(TenableScan).count() == 0:
             self.import_provider_findings(limit=50000)
 
         query = self.db.query(TenableScan)
-        total = query.count()
-        items = query.order_by(TenableScan.id).offset(offset).limit(limit).all()
+        if provider_page_ids is not None:
+            query = query.filter(TenableScan.source_scan_id.in_(provider_page_ids)) if provider_page_ids else query.filter(False)
+            rows = query.all()
+            by_source_id = {row.source_scan_id: row for row in rows}
+            items = [by_source_id[key] for key in provider_page_ids if key in by_source_id]
+            total = len(items)
+            has_more = provider_page_has_more
+        else:
+            total = query.count()
+            items = query.order_by(TenableScan.id).offset(offset).limit(limit).all()
+            has_more = offset + len(items) < total
 
         return {
             "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,
-            "has_more": offset + len(items) < total,
+            "has_more": has_more,
         }
 
     def get_scan(self, scan_id: int) -> TenableScan | None:

@@ -77,17 +77,27 @@ the service; it does not execute a remote patch job. Do not treat it as live
 execution until the BRD approval, target, and template controls are wired and
 validated.
 
+`POST /api/v1/satellite/import` accepts `limit` and `offset` and imports the
+requested page into PostgreSQL. Host and template list routes now refresh their
+requested page from the active provider on each request, so previously imported
+fixture rows do not mask the live Satellite page. The Satellite provider maps
+VPM360 offset/limit values to Satellite `per_page`/`page` pagination.
+
 ## Ansible Automation Platform / AWX — BRD 4.7
 
-The BRD requires inventory host listing, ad-hoc command schema discovery,
+`GET /api/v1/ansible/job-templates` fetches the requested page from the active
+provider on every call, upserts those template records into PostgreSQL, and
+returns `provider_mode` (`api` or `json`) so callers can distinguish live data
+from fixture fallback. The BRD requires inventory host listing, ad-hoc command schema discovery,
 approved script execution, command status, per-host events, stdout evidence, and
-cancellation. The current `/api/v1/ansible` integration instead lists job
-templates and launches `job_templates/{id}/launch/`; it does not implement the
+cancellation. The current `/api/v1/ansible` integration lists job templates,
+fetches paginated controller history, and launches `job_templates/{id}/launch/`;
+it does not implement the
 BRD's `inventories/{id}/ad_hoc_commands` and events/stdout contract. It stores
 launch/status payloads in `ansible_job_runs`; imported template records and the
 complete source JSON are stored in `ansible_job_templates.source_payload`.
-Template listing supports database pagination and imports fixtures when the
-table is empty. Inventory hosts and normalized per-host event/evidence records
+Template listing fetches and persists the current provider page on each call.
+Inventory hosts and normalized per-host event/evidence records
 are not persisted. Therefore template/job JSON retention exists, but execution
 and per-host data requirements do not yet match BRD 4.7. Confirm the Controller
 version, inventory IDs, permissions, and approved scripts before implementing

@@ -247,9 +247,11 @@ def cancel_job_run(
     summary="Import and synchronize hosts and templates into PostgreSQL",
 )
 def import_satellite_data(
+    limit: int = Query(default=50000, ge=1, le=50000, description="Maximum records per resource to import"),
+    offset: int = Query(default=0, ge=0, description="Number of source records to skip"),
     service: SatelliteService = Depends(get_satellite_service),
 ) -> dict[str, Any]:
     """Synchronize hosts and job templates into PostgreSQL from active source (API or JSON fixtures)."""
-    return service.import_provider_data()
+    return service.import_provider_data(limit=limit, offset=offset)
 
 

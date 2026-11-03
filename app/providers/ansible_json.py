@@ -13,7 +13,7 @@ class AnsibleJsonProvider:
         self.templates = JsonProvider("ansible/multijob_templates.json")
 
     def list_templates(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
-        if not 1 <= limit <= 50000 or offset < 0:
+        if not 1 <= limit <= 25000 or offset < 0:
             raise ValueError("limit must be between 1 and 50000 and offset cannot be negative")
         records = self.templates.list_records(limit=limit, offset=offset)
         total = len(self.templates.list_records(limit=50000))
@@ -22,6 +22,7 @@ class AnsibleJsonProvider:
             "results": records,
             "count": total,
             "next": f"?offset={next_offset}" if next_offset < total else None,
+            "provider_mode": "json",
         }
 
     def test_connection(self) -> dict[str, Any]:
@@ -35,7 +36,7 @@ class AnsibleJsonProvider:
 
     def list_jobs(self, limit: int = 100, offset: int = 0) -> dict[str, Any]:
         """Fixture mode has no controller execution history to list."""
-        if not 1 <= limit <= 50000 or offset < 0:
+        if not 1 <= limit <= 25000 or offset < 0:
             raise ValueError("limit must be between 1 and 50000 and offset cannot be negative")
         return {"results": [], "count": 0, "next": None}
 

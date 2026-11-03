@@ -68,6 +68,12 @@ def check_connector_connection(integration: str, db: Session) -> dict[str, Any]:
                 "message": "Read-only API connection check succeeded.",
             }
     except Exception as exc:
+        failure = (
+            str(exc)
+            if integration in {"tenable", "cmdb"}
+            and isinstance(exc, (RuntimeError, ValueError))
+            else type(exc).__name__
+        )
         result = {
             "integration": integration,
             "status": "error",
@@ -75,7 +81,7 @@ def check_connector_connection(integration: str, db: Session) -> dict[str, Any]:
             "healthy": False,
             "provider_mode": mode,
             "checked_at": checked_at,
-            "message": f"Connection check failed: {type(exc).__name__}",
+            "message": f"Connection check failed: {failure}",
         }
 
     try:

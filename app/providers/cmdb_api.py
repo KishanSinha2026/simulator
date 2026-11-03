@@ -40,6 +40,11 @@ class CMDBAPIProvider:
             )
 
         self.base_url = settings.cmdb_base_url.rstrip("/")
+        # CMDB REST routes are rooted at the tenant host (for example,
+        # /api/jwt/login and /api/cmdb/v1.0). Accept the browser's /cmdb
+        # landing URL but do not duplicate it in API requests.
+        if self.base_url.casefold().endswith("/cmdb"):
+            self.base_url = self.base_url[:-5].rstrip("/")
         self.timeout = settings.api_timeout_seconds
         self.max_retries = settings.api_max_retries
         self.verify_tls = settings.cmdb_verify_tls
@@ -47,14 +52,17 @@ class CMDBAPIProvider:
         self.username = settings.cmdb_username
         self.password = settings.cmdb_password.get_secret_value()
 
-        # Do not silently use BMC.SAMPLE in a client environment.
+        # The dataset is required for inventory operations, but not for the
+        # read-only authentication/metadata connection probe. Defer that
+        # validation until an operation actually needs an instance dataset.
         configured_dataset = (
             dataset_id
             or getattr(settings, "cmdb_dataset_id", None)
         )
-        self.dataset_id = self._require_text(
-            configured_dataset,
-            "CMDB_DATASET_ID",
+        self.dataset_id = (
+            configured_dataset.strip()
+            if isinstance(configured_dataset, str)
+            else ""
         )
 
         self.namespace = self._require_text(
@@ -117,7 +125,23 @@ class CMDBAPIProvider:
             )
             response.raise_for_status()
 
+        except httpx.HTTPStatusError as exc:
+            raise RuntimeError(
+                "CMDB authentication was rejected "
+                f"(HTTP {exc.response.status_code}). Check the configured "
+                "base URL and account credentials/permissions."
+            ) from exc
         except httpx.HTTPError as exc:
+            if "getaddrinfo failed" in str(exc).casefold():
+                raise RuntimeError(
+                    "CMDB hostname could not be resolved. Verify "
+                    "CMDB_BASE_URL and the machine's DNS/VPN access."
+                ) from exc
+            if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
+                raise RuntimeError(
+                    "Could not connect to the CMDB host. Verify "
+                    "CMDB_BASE_URL and network access."
+                ) from exc
             raise RuntimeError(
                 "CMDB authentication failed. Check the base URL, "
                 "credentials, network connectivity, and permissions."
@@ -501,7 +525,7 @@ class CMDBAPIProvider:
         """
         source_ip = self._require_ip_text(ip_address)
 
-        if not 1 <= limit <= 50000:
+        if not 1 <= limit <= 25000:
             raise ValueError("limit must be between 1 and 50000")
         if offset < 0:
             raise ValueError("offset cannot be negative")
@@ -593,7 +617,7 @@ class CMDBAPIProvider:
             "CMDB_RELATIONSHIP_CLASS",
         )
 
-        if not 1 <= limit <= 50000:
+        if not 1 <= limit <= 25000:
             raise ValueError("limit must be between 1 and 50000")
         if not 1 <= levels <= 10:
             raise ValueError("levels must be between 1 and 10")
@@ -807,7 +831,7 @@ class CMDBAPIProvider:
         attributes: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Read one page of CMDB instances for a specified class."""
-        if not 1 <= limit <= 50000:
+        if not 1 <= limit <= 25000:
             raise ValueError("limit must be between 1 and 50000")
         if offset < 0:
             raise ValueError("offset cannot be negative")

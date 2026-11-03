@@ -6,6 +6,7 @@ from typing import Any
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.squad1 import Squad1Vulnerability
 from app.repositories.squad1 import Squad1Repository
 from app.schemas.squad1 import Squad1VulnerabilityCreate
@@ -22,7 +23,7 @@ class Squad1Service:
     @staticmethod
     def _validate_pagination(limit: int, offset: int) -> None:
         """Validate pagination parameters."""
-        if not 1 <= limit <= 50000:
+        if not 1 <= limit <= 25000:
             raise ValueError("limit must be between 1 and 50000")
         if offset < 0:
             raise ValueError("offset cannot be negative")
@@ -66,11 +67,17 @@ class Squad1Service:
         """List Squad1 vulnerabilities with optional filters."""
         self._validate_pagination(limit, offset)
 
-        # Auto-import from active provider if database is empty
-        if self.db.query(Squad1Vulnerability).count() == 0:
+        provider_page_ids: list[str] | None = None
+        if get_settings().provider_for("squad1") == "api":
+            provider_page_ids = self.import_provider_data(
+                limit=limit, offset=offset, include_source_ids=True
+            )["vulnerability_ids"]
+        elif self.db.query(Squad1Vulnerability).count() == 0:
             self.import_provider_data()
 
         query = self.db.query(Squad1Vulnerability)
+        if provider_page_ids is not None:
+            query = query.filter(Squad1Vulnerability.vulnerability_no.in_(provider_page_ids)) if provider_page_ids else query.filter(False)
 
         if status:
             query = query.filter(Squad1Vulnerability.status == status.strip())
@@ -79,20 +86,23 @@ class Squad1Service:
         if risk_rating:
             query = query.filter(Squad1Vulnerability.risk_rating == risk_rating.strip())
 
-        total = query.count()
-        items = (
-            query.order_by(Squad1Vulnerability.id)
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+        if provider_page_ids is not None:
+            rows = query.all()
+            by_id = {row.vulnerability_no: row for row in rows}
+            items = [by_id[key] for key in provider_page_ids if key in by_id]
+            total = len(items)
+            has_more = len(provider_page_ids) == limit
+        else:
+            total = query.count()
+            items = query.order_by(Squad1Vulnerability.id).offset(offset).limit(limit).all()
+            has_more = offset + len(items) < total
 
         return {
             "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,
-            "has_more": offset + len(items) < total,
+            "has_more": has_more,
         }
 
     def get_vulnerability(self, vulnerability_id: int) -> Squad1Vulnerability | None:
@@ -110,7 +120,12 @@ class Squad1Service:
         """Retrieve active exceptions per BRD Section 4.2."""
         self._validate_pagination(limit, offset)
 
-        if self.db.query(Squad1Vulnerability).count() == 0:
+        provider_page_ids: list[str] | None = None
+        if get_settings().provider_for("squad1") == "api":
+            provider_page_ids = self.import_provider_data(
+                limit=limit, offset=offset, include_source_ids=True
+            )["vulnerability_ids"]
+        elif self.db.query(Squad1Vulnerability).count() == 0:
             self.import_provider_data()
 
         query = self.db.query(Squad1Vulnerability).filter(
@@ -121,20 +136,24 @@ class Squad1Service:
                 Squad1Vulnerability.exception_end_date >= datetime.now(timezone.utc),
             ),
         )
-        total = query.count()
-        items = (
-            query.order_by(Squad1Vulnerability.id)
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+        if provider_page_ids is not None:
+            query = query.filter(Squad1Vulnerability.vulnerability_no.in_(provider_page_ids)) if provider_page_ids else query.filter(False)
+            rows = query.all()
+            by_id = {row.vulnerability_no: row for row in rows}
+            items = [by_id[key] for key in provider_page_ids if key in by_id]
+            total = len(items)
+            has_more = len(provider_page_ids) == limit
+        else:
+            total = query.count()
+            items = query.order_by(Squad1Vulnerability.id).offset(offset).limit(limit).all()
+            has_more = offset + len(items) < total
 
         return {
             "items": items,
             "total": total,
             "limit": limit,
             "offset": offset,
-            "has_more": offset + len(items) < total,
+            "has_more": has_more,
         }
 
     def create_vulnerability(
@@ -181,6 +200,7 @@ class Squad1Service:
         *,
         limit: int = 50000,
         offset: int = 0,
+        include_source_ids: bool = False,
     ) -> dict[str, Any]:
         """Import Squad1 vulnerabilities from active provider into PostgreSQL."""
         raw_records = []
@@ -337,7 +357,7 @@ class Squad1Service:
                 self.db.rollback()
                 errors += len(chunk)
 
-        return {
+        result = {
             "status": "completed",
             "records_received": len(raw_records),
             "records_created": created,
@@ -345,3 +365,6 @@ class Squad1Service:
             "exceptions_count": exceptions_count,
             "errors": errors,
         }
+        if include_source_ids:
+            result["vulnerability_ids"] = [item[0] for item in clean_batch]
+        return result

@@ -34,11 +34,19 @@ class SatelliteJsonProvider:
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """List hosts with optional filters and pagination."""
-        return self.hosts.list_records(
-            limit=limit,
-            offset=offset,
-            filters=filters,
-        )
+        return self.list_hosts_page(limit=limit, offset=offset, filters=filters)["items"]
+
+    def list_hosts_page(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        records = self.hosts.list_records(limit=50000, offset=0, filters=filters)
+        items = records[offset : offset + limit]
+        return {"items": items, "total": len(records), "limit": limit,
+                "offset": offset, "has_more": offset + len(items) < len(records)}
 
     def list_job_templates(
         self,
@@ -48,11 +56,19 @@ class SatelliteJsonProvider:
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """List available simulated job templates."""
-        return self.job_templates.list_records(
-            limit=limit,
-            offset=offset,
-            filters=filters,
-        )
+        return self.list_job_templates_page(limit=limit, offset=offset, filters=filters)["items"]
+
+    def list_job_templates_page(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        records = self.job_templates.list_records(limit=50000, offset=0, filters=filters)
+        items = records[offset : offset + limit]
+        return {"items": items, "total": len(records), "limit": limit,
+                "offset": offset, "has_more": offset + len(items) < len(records)}
 
     def get_job_run(
         self,

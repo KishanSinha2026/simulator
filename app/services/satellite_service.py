@@ -49,6 +49,107 @@ class SatelliteService:
                 return None
         return None
 
+    def _provider_page(
+        self,
+        resource: str,
+        *,
+        limit: int,
+        offset: int,
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        page_method = getattr(self.provider, f"{resource}_page", None)
+        if callable(page_method):
+            return page_method(limit=limit, offset=offset, filters=filters)
+        list_method = getattr(self.provider, resource)
+        items = list_method(limit=limit, offset=offset, filters=filters)
+        return {
+            "items": items,
+            "total": len(items),
+            "limit": limit,
+            "offset": offset,
+            "has_more": len(items) == limit,
+        }
+
+    def _persist_hosts(self, items: list[dict[str, Any]]) -> list[SatelliteHost]:
+        clean_items: dict[str, dict[str, Any]] = {}
+        for item in items:
+            source_id = str(item.get("source_host_id") or item.get("id") or "").strip()
+            if source_id:
+                clean_items[source_id] = item
+        source_ids = list(clean_items)
+        for start in range(0, len(source_ids), 500):
+            batch_ids = source_ids[start : start + 500]
+            existing = {
+                row.source_host_id: row
+                for row in self.db.query(SatelliteHost)
+                .filter(SatelliteHost.source_host_id.in_(batch_ids)).all()
+            }
+            for source_id in batch_ids:
+                item = clean_items[source_id]
+                data = {
+                    "source_host_id": source_id,
+                    "name": item.get("name") or item.get("hostname") or source_id,
+                    "ip_address": item.get("ip_address") or item.get("ip"),
+                    "operating_system": (
+                        item.get("operating_system")
+                        or item.get("operatingsystem_name")
+                        or item.get("operatingsystem")
+                    ),
+                    "organization_id": item.get("organization_id"),
+                    "location_id": item.get("location_id"),
+                    "source_payload": item,
+                }
+                row = existing.get(source_id)
+                if row is None:
+                    self.db.add(SatelliteHost(**data))
+                else:
+                    for key, value in data.items():
+                        setattr(row, key, value)
+            self.db.commit()
+        rows = self.db.query(SatelliteHost).filter(
+            SatelliteHost.source_host_id.in_(source_ids)
+        ).all() if source_ids else []
+        by_source_id = {row.source_host_id: row for row in rows}
+        return [by_source_id[source_id] for source_id in source_ids if source_id in by_source_id]
+
+    def _persist_templates(self, items: list[dict[str, Any]]) -> list[SatelliteJobTemplate]:
+        clean_items: dict[str, dict[str, Any]] = {}
+        for item in items:
+            source_id = str(item.get("source_template_id") or item.get("id") or "").strip()
+            if source_id:
+                clean_items[source_id] = item
+        source_ids = list(clean_items)
+        for start in range(0, len(source_ids), 500):
+            batch_ids = source_ids[start : start + 500]
+            existing = {
+                row.source_template_id: row
+                for row in self.db.query(SatelliteJobTemplate)
+                .filter(SatelliteJobTemplate.source_template_id.in_(batch_ids)).all()
+            }
+            for source_id in batch_ids:
+                item = clean_items[source_id]
+                input_schema = item.get("input_schema") or item.get("inputs")
+                data = {
+                    "source_template_id": source_id,
+                    "name": item.get("name") or source_id,
+                    "description": item.get("description"),
+                    "template_type": item.get("template_type") or item.get("template_kind") or item.get("job_category"),
+                    "input_schema": input_schema if isinstance(input_schema, dict) else None,
+                    "source_payload": item,
+                }
+                row = existing.get(source_id)
+                if row is None:
+                    self.db.add(SatelliteJobTemplate(**data))
+                else:
+                    for key, value in data.items():
+                        setattr(row, key, value)
+            self.db.commit()
+        rows = self.db.query(SatelliteJobTemplate).filter(
+            SatelliteJobTemplate.source_template_id.in_(source_ids)
+        ).all() if source_ids else []
+        by_source_id = {row.source_template_id: row for row in rows}
+        return [by_source_id[source_id] for source_id in source_ids if source_id in by_source_id]
+
     # ------------------------------------------------------------------
     # Host Operations (Database)
     # ------------------------------------------------------------------
@@ -66,19 +167,9 @@ class SatelliteService:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
-        # Auto-import from active provider (API or JSON fixture) if database is empty
-        if self.db.query(SatelliteHost).count() == 0:
-            self.import_provider_data()
-
-        query = self.db.query(SatelliteHost)
-        total = query.count()
-
-        items = (
-            query.order_by(SatelliteHost.id)
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+        page = self._provider_page("list_hosts", limit=limit, offset=offset)
+        items = self._persist_hosts(page["items"])
+        total = int(page.get("total", len(items)))
 
         return {
             "items": items,
@@ -158,19 +249,9 @@ class SatelliteService:
         if offset < 0:
             raise ValueError("offset cannot be negative")
 
-        # Auto-import from active provider (API or JSON fixture) if database is empty
-        if self.db.query(SatelliteJobTemplate).count() == 0:
-            self.import_provider_data()
-
-        query = self.db.query(SatelliteJobTemplate)
-        total = query.count()
-
-        items = (
-            query.order_by(SatelliteJobTemplate.id)
-            .offset(offset)
-            .limit(limit)
-            .all()
-        )
+        page = self._provider_page("list_job_templates", limit=limit, offset=offset)
+        items = self._persist_templates(page["items"])
+        total = int(page.get("total", len(items)))
 
         return {
             "items": items,
@@ -531,134 +612,69 @@ class SatelliteService:
             return self.provider.cancel_job(job_run_id)
         raise ValueError("Active provider does not support job cancellation")
 
-    def import_provider_data(self) -> dict[str, Any]:
-        """Import hosts and job templates from provider into PostgreSQL."""
-        hosts_imported = 0
-        templates_imported = 0
-        errors = 0
+    def import_provider_data(
+        self,
+        *,
+        limit: int = 50000,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Import the requested source page and persist it in PostgreSQL."""
+        if limit < 1 or limit > 50000:
+            raise ValueError("limit must be between 1 and 50000")
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
 
-        # Import hosts in batches
-        if hasattr(self.provider, "list_hosts"):
-            try:
-                raw_hosts = self.provider.list_hosts(limit=50000)
-                clean_hosts: dict[str, dict[str, Any]] = {}
-                for item in raw_hosts:
-                    sid = str(item.get("source_host_id") or item.get("id") or "").strip()
-                    if sid:
-                        clean_hosts[sid] = item
+        error_details: list[str] = []
+        try:
+            host_page = self._provider_page("list_hosts", limit=limit, offset=offset)
+            hosts_imported = len(self._persist_hosts(host_page["items"]))
+        except Exception as exc:
+            self.db.rollback()
+            hosts_imported = 0
+            error_details.append(f"hosts: {type(exc).__name__}")
 
-                chunk = list(clean_hosts.values())
-                chunk_size = 500
-                for i in range(0, len(chunk), chunk_size):
-                    batch = chunk[i : i + chunk_size]
-                    batch_ids = [str(item.get("source_host_id") or item.get("id")).strip() for item in batch]
-                    existing_map = {
-                        h.source_host_id: h
-                        for h in self.db.query(SatelliteHost).filter(SatelliteHost.source_host_id.in_(batch_ids)).all()
-                    }
-                    for item in batch:
-                        source_id = str(item.get("source_host_id") or item.get("id")).strip()
-                        existing = existing_map.get(source_id)
-                        data = {
-                            "source_host_id": source_id,
-                            "name": item.get("name") or item.get("hostname") or source_id,
-                            "ip_address": item.get("ip_address") or item.get("ip"),
-                            "operating_system": (
-                                item.get("operating_system")
-                                or item.get("operatingsystem_name")
-                                or item.get("operatingsystem")
-                            ),
-                            "organization_id": item.get("organization_id"),
-                            "location_id": item.get("location_id"),
-                            "source_payload": item,
-                        }
-                        if existing is None:
-                            self.db.add(SatelliteHost(**data))
-                        else:
-                            for k, v in data.items():
-                                setattr(existing, k, v)
-                        hosts_imported += 1
-                    self.db.commit()
-            except Exception:
-                self.db.rollback()
-                errors += 1
+        try:
+            template_page = self._provider_page(
+                "list_job_templates", limit=limit, offset=offset
+            )
+            templates_imported = len(self._persist_templates(template_page["items"]))
+        except Exception as exc:
+            self.db.rollback()
+            templates_imported = 0
+            error_details.append(f"job_templates: {type(exc).__name__}")
 
-        # Import job templates in batches
-        if hasattr(self.provider, "list_job_templates"):
-            try:
-                raw_templates = self.provider.list_job_templates(limit=50000)
-                clean_templates: dict[str, dict[str, Any]] = {}
-                for item in raw_templates:
-                    sid = str(item.get("source_template_id") or item.get("id") or "").strip()
-                    if sid:
-                        clean_templates[sid] = item
-
-                chunk = list(clean_templates.values())
-                chunk_size = 500
-                for i in range(0, len(chunk), chunk_size):
-                    batch = chunk[i : i + chunk_size]
-                    batch_ids = [str(item.get("source_template_id") or item.get("id")).strip() for item in batch]
-                    existing_map = {
-                        t.source_template_id: t
-                        for t in self.db.query(SatelliteJobTemplate).filter(SatelliteJobTemplate.source_template_id.in_(batch_ids)).all()
-                    }
-                    for item in batch:
-                        source_id = str(item.get("source_template_id") or item.get("id")).strip()
-                        existing = existing_map.get(source_id)
-                        data = {
-                            "source_template_id": source_id,
-                            "name": item.get("name") or source_id,
-                            "description": item.get("description"),
-                            "template_type": (
-                                item.get("template_type")
-                                or item.get("template_kind")
-                                or item.get("job_category")
-                            ),
-                            "input_schema": (
-                                item.get("input_schema")
-                                or item.get("inputs")
-                                if isinstance(item.get("input_schema") or item.get("inputs"), dict)
-                                else None
-                            ),
-                            "source_payload": item,
-                        }
-                        if existing is None:
-                            self.db.add(SatelliteJobTemplate(**data))
-                        else:
-                            for k, v in data.items():
-                                setattr(existing, k, v)
-                        templates_imported += 1
-                    self.db.commit()
-            except Exception:
-                self.db.rollback()
-                errors += 1
-
-        # Fixture/demo executions are also mirrored to PostgreSQL. The API
-        # provider does not expose host-result listing, so no unsupported live
-        # history endpoint is inferred here.
         job_runs_imported = 0
-        host_results_imported = 0
-        if hasattr(self.provider, "list_host_results") and hasattr(self.provider, "list_job_runs"):
+        if hasattr(self.provider, "list_job_runs"):
             try:
-                templates = {
+                template_ids = {
                     row.source_template_id: row.id
                     for row in self.db.query(SatelliteJobTemplate).all()
                 }
-                hosts = {
-                    row.source_host_id: row.id
-                    for row in self.db.query(SatelliteHost).all()
-                }
+                raw_runs = self.provider.list_job_runs(limit=limit, offset=offset)
+                clean_runs: dict[str, dict[str, Any]] = {}
+                for item in raw_runs:
+                    invocation_id = str(
+                        item.get("id") or item.get("source_invocation_id") or ""
+                    ).strip()
+                    if invocation_id:
+                        clean_runs[invocation_id] = item
+                invocation_ids = list(clean_runs)
                 existing_runs = {
                     row.source_invocation_id: row
-                    for row in self.db.query(SatelliteJobRun).all()
-                    if row.source_invocation_id
-                }
-                raw_runs = self.provider.list_job_runs(limit=50000, offset=0)
-                for item in raw_runs:
-                    invocation_id = str(item.get("id") or item.get("source_invocation_id") or "").strip()
-                    template_source_id = str(item.get("job_template_id") or item.get("template_id") or "").strip()
-                    template_id = templates.get(template_source_id)
-                    if not invocation_id or template_id is None:
+                    for row in self.db.query(SatelliteJobRun)
+                    .filter(SatelliteJobRun.source_invocation_id.in_(invocation_ids))
+                    .all()
+                } if invocation_ids else {}
+                for invocation_id, item in clean_runs.items():
+                    raw_template_id = (
+                        item.get("job_template_id")
+                        or item.get("template_id")
+                        or item.get("job_template")
+                    )
+                    if isinstance(raw_template_id, dict):
+                        raw_template_id = raw_template_id.get("id")
+                    template_id = template_ids.get(str(raw_template_id or ""))
+                    if template_id is None:
                         continue
                     data = {
                         "source_invocation_id": invocation_id,
@@ -678,21 +694,35 @@ class SatelliteService:
                         for key, value in data.items():
                             setattr(row, key, value)
                     job_runs_imported += 1
-                self.db.flush()
-                run_ids = {
+                self.db.commit()
+            except Exception as exc:
+                self.db.rollback()
+                error_details.append(f"job_runs: {type(exc).__name__}")
+
+        host_results_imported = 0
+        if hasattr(self.provider, "list_host_results"):
+            try:
+                templates = {
+                    row.source_template_id: row.id
+                    for row in self.db.query(SatelliteJobTemplate).all()
+                }
+                hosts = {
+                    row.source_host_id: row.id
+                    for row in self.db.query(SatelliteHost).all()
+                }
+                runs = {
                     row.source_invocation_id: row.id
-                    for row in existing_runs.values()
+                    for row in self.db.query(SatelliteJobRun).all()
                     if row.source_invocation_id
                 }
                 existing_results = {
                     (row.job_run_id, row.host_id): row
                     for row in self.db.query(SatelliteJobHostResult).all()
                 }
-                for item in self.provider.list_host_results(limit=50000, offset=0):
-                    source_run_id = str(item.get("job_run_id") or "").strip()
-                    source_host_id = str(item.get("host_id") or "").strip()
-                    run_id = run_ids.get(source_run_id)
-                    host_id = hosts.get(source_host_id)
+                raw_results = self.provider.list_host_results(limit=limit, offset=offset)
+                for item in raw_results:
+                    run_id = runs.get(str(item.get("job_run_id") or "").strip())
+                    host_id = hosts.get(str(item.get("host_id") or "").strip())
                     if run_id is None or host_id is None:
                         continue
                     output = "\n".join(
@@ -717,14 +747,17 @@ class SatelliteService:
                             setattr(row, key, value)
                     host_results_imported += 1
                 self.db.commit()
-            except Exception:
+            except Exception as exc:
                 self.db.rollback()
-                errors += 1
+                error_details.append(f"host_results: {type(exc).__name__}")
 
         return {
             "hosts_imported": hosts_imported,
             "job_templates_imported": templates_imported,
             "job_runs_imported": job_runs_imported,
             "host_results_imported": host_results_imported,
-            "errors": errors,
+            "errors": len(error_details),
+            "error_details": error_details,
+            "limit": limit,
+            "offset": offset,
         }

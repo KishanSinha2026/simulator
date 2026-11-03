@@ -203,12 +203,61 @@ class SatelliteAPIProvider:
         ]
 
     @staticmethod
-    def _validate_pagination(*, limit: int, page: int) -> None:
+    def _validate_pagination(*, limit: int, offset: int) -> None:
         if not 1 <= limit <= 50000:
             raise ValueError("limit must be between 1 and 50000")
 
-        if page < 1:
-            raise ValueError("page must be at least 1")
+        if offset < 0:
+            raise ValueError("offset cannot be negative")
+
+    def _list_page(
+        self,
+        path: str,
+        *,
+        limit: int,
+        offset: int,
+        search: str | None = None,
+    ) -> dict[str, Any]:
+        """Translate offset/limit to Satellite per_page/page requests."""
+        self._validate_pagination(limit=limit, offset=offset)
+        page_size = min(limit, 1000)
+        page = offset // page_size + 1
+        skip = offset % page_size
+        results: list[dict[str, Any]] = []
+        total: int | None = None
+
+        while len(results) < limit:
+            params: dict[str, Any] = {"per_page": page_size, "page": page}
+            if search and search.strip():
+                params["search"] = search.strip()
+            data = self._request("GET", path, params=params)
+            batch = self._results(data, "results")
+            raw_total = data.get("subtotal", data.get("total"))
+            if raw_total is not None:
+                try:
+                    total = int(raw_total)
+                except (TypeError, ValueError):
+                    total = None
+            if skip:
+                batch = batch[skip:]
+                skip = 0
+            results.extend(batch)
+            if not batch or len(results) >= limit:
+                break
+            if total is not None and offset + len(results) >= total:
+                break
+            if len(batch) < page_size:
+                break
+            page += 1
+
+        items = results[:limit]
+        return {
+            "items": items,
+            "total": total if total is not None else offset + len(items),
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + len(items) < total if total is not None else len(items) == limit,
+        }
 
     @staticmethod
     def _encode_identifier(identifier: str | int) -> str:
@@ -225,28 +274,27 @@ class SatelliteAPIProvider:
         *,
         search: str | None = None,
         limit: int = 100,
-        page: int = 1,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """List registered hosts using Satellite search syntax."""
-        self._validate_pagination(limit=limit, page=page)
+        if not search and filters:
+            search = filters.get("search")
+        return self.list_hosts_page(limit=limit, offset=offset, search=search)["items"]
 
-        params: dict[str, Any] = {
-            "per_page": limit,
-            "page": page,
-        }
-
-        if search is not None:
-            search = search.strip()
-            if search:
-                params["search"] = search
-
-        data = self._request(
-            "GET",
-            "/api/v2/hosts",
-            params=params,
+    def list_hosts_page(
+        self,
+        *,
+        search: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not search and filters:
+            search = filters.get("search")
+        return self._list_page(
+            "/api/v2/hosts", limit=limit, offset=offset, search=search
         )
-
-        return self._results(data, "results")
 
     def get_host(self, host_id: str | int) -> dict[str, Any]:
         """Retrieve one registered host by its Satellite identifier."""
@@ -262,48 +310,48 @@ class SatelliteAPIProvider:
         *,
         search: str | None = None,
         limit: int = 100,
-        page: int = 1,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """List available remote-execution job templates."""
-        self._validate_pagination(limit=limit, page=page)
+        if not search and filters:
+            search = filters.get("search")
+        return self.list_job_templates_page(
+            limit=limit, offset=offset, search=search
+        )["items"]
 
-        params: dict[str, Any] = {
-            "per_page": limit,
-            "page": page,
-        }
-
-        if search is not None:
-            search = search.strip()
-            if search:
-                params["search"] = search
-
-        data = self._request(
-            "GET",
-            "/api/v2/job_templates",
-            params=params,
+    def list_job_templates_page(
+        self,
+        *,
+        search: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        filters: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not search and filters:
+            search = filters.get("search")
+        return self._list_page(
+            "/api/v2/job_templates", limit=limit, offset=offset, search=search
         )
-
-        return self._results(data, "results")
 
     def list_job_runs(
         self,
         *,
         limit: int = 100,
-        page: int = 1,
+        offset: int = 0,
     ) -> list[dict[str, Any]]:
         """List remote-execution job invocations."""
-        self._validate_pagination(limit=limit, page=page)
+        return self.list_job_runs_page(limit=limit, offset=offset)["items"]
 
-        data = self._request(
-            "GET",
-            "/api/job_invocations",
-            params={
-                "per_page": limit,
-                "page": page,
-            },
+    def list_job_runs_page(
+        self,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        return self._list_page(
+            "/api/job_invocations", limit=limit, offset=offset
         )
-
-        return self._results(data, "results")
 
     def get_job_run(
         self,
