@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision: str = "f2b74c9d1360"
 down_revision: str | Sequence[str] | None = "e7d9c2b1456a"
@@ -12,6 +12,17 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    if context.is_offline_mode():
+        op.add_column("sccm_deployment_runs", sa.Column("deployment_id", sa.String(length=100), nullable=True))
+        op.create_index("ix_sccm_deployment_runs_deployment_id", "sccm_deployment_runs", ["deployment_id"])
+        op.execute(
+            "UPDATE sccm_deployment_runs AS runs SET deployment_id = "
+            "COALESCE(deployments.source_payload->>'id', runs.assignment_id) "
+            "FROM sccm_deployments AS deployments WHERE runs.deployment_id IS NULL "
+            "AND runs.assignment_id = deployments.assignment_id"
+        )
+        op.add_column("sccm_deployment_asset_details", sa.Column("reboot_pending", sa.Boolean(), nullable=True))
+        return
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     tables = set(inspector.get_table_names())

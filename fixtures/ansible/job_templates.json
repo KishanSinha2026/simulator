@@ -1,0 +1,22 @@
+[
+  {
+    "id": "demo-template-001",
+    "name": "VPM360 Safe Demo Patch (Simulated)",
+    "description": "Fixture template for offline testing. This template never runs commands on a host.",
+    "ask_limit_on_launch": true,
+    "ask_variables_on_launch": true,
+    "inventory": "localhost",
+    "provider_mode": "json",
+    "is_simulated": true
+  },
+  {
+    "id": "demo-template-002",
+    "name": "VPM360 Safe Demo Verification (Simulated)",
+    "description": "Fixture template for offline verification workflows. No remote execution occurs.",
+    "ask_limit_on_launch": true,
+    "ask_variables_on_launch": false,
+    "inventory": "localhost",
+    "provider_mode": "json",
+    "is_simulated": true
+  }
+]

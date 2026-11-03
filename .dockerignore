@@ -12,6 +12,7 @@ data
 *.docx
 *.md
 *.txt
+!requirements.txt
 *.xlsx
 docs
 *.xlsx

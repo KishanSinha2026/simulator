@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision: str = "e7d9c2b1456a"
 down_revision: str | Sequence[str] | None = "c1a9d8402f7b"
@@ -12,6 +12,13 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    if context.is_offline_mode():
+        op.add_column("sccm_devices", sa.Column("client_version", sa.String(length=100), nullable=True))
+        op.execute(
+            "UPDATE sccm_devices SET client_version = source_payload->>'client_version' "
+            "WHERE client_version IS NULL AND source_payload ? 'client_version'"
+        )
+        return
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     if "sccm_devices" not in inspector.get_table_names():

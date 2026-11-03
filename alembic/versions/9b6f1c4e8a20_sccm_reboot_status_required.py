@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision: str = "9b6f1c4e8a20"
 down_revision: str | Sequence[str] | None = "f2b74c9d1360"
@@ -12,6 +12,20 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    if context.is_offline_mode():
+        op.add_column(
+            "sccm_deployment_asset_details",
+            sa.Column("reboot_pending", sa.Boolean(), nullable=False, server_default=sa.false()),
+        )
+        op.execute("UPDATE sccm_deployment_asset_details SET reboot_pending = FALSE WHERE reboot_pending IS NULL")
+        op.alter_column(
+            "sccm_deployment_asset_details",
+            "reboot_pending",
+            existing_type=sa.Boolean(),
+            nullable=False,
+            server_default=sa.false(),
+        )
+        return
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     if "sccm_deployment_asset_details" not in inspector.get_table_names():

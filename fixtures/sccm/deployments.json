@@ -1,0 +1,17 @@
+[
+  {
+    "id": "sccm-dep-001",
+    "assignment_id": "ASSIGN-2026-10-WIN",
+    "name": "2026-10 Cumulative Security Updates for Windows Server",
+    "target_collection_id": "SMS00001",
+    "reboot_policy": "CLIENT_APPROVED",
+    "status": "Active",
+    "window_start": "2026-11-02T20:00:00Z",
+    "window_end": "2026-11-02T23:59:59Z",
+    "source_payload": {
+      "adr_name": "ADR - Windows Server Security Baseline",
+      "deadline": "2026-11-02T22:00:00Z",
+      "is_simulated": true
+    }
+  }
+]

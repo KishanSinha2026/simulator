@@ -8,7 +8,7 @@ Create Date: 2026-10-28
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 
 revision: str = "a74c2e6105f1"
@@ -19,6 +19,12 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add Username when upgrading a database created before this field."""
+    if context.is_offline_mode():
+        op.execute(
+            "ALTER TABLE cmdb_middleware "
+            "ADD COLUMN IF NOT EXISTS username VARCHAR(255)"
+        )
+        return
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     if "cmdb_middleware" not in inspector.get_table_names():

@@ -7,6 +7,7 @@ WORKDIR /app
 
 RUN useradd --create-home --no-user-group appuser
 
+
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
